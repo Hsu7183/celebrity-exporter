@@ -1,168 +1,143 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>新聞姓名萃取工具</title>
-  <style>
-    body { font-family: sans-serif; max-width: 800px; margin: 40px auto; }
-    h1 { font-size: 1.5em; }
-    label { margin-right: 8px; }
-    select, input { margin: 0 12px 0 4px; }
-    button { margin-left: 12px; }
-    #status { margin-top: 20px; color: #555; }
-  </style>
+<meta charset="UTF-8">
+<title>純前端 Google 新聞人名擷取工具</title>
 </head>
 <body>
-  <h1>新聞姓名萃取工具</h1>
-  <p>從 Google 新聞搜尋台灣主流媒體，萃取人物真實姓名列表</p>
-  
-  <!-- 選項表單 -->
-  <div>
-    <label for="timeRange">新聞時間範圍:</label>
-    <select id="timeRange">
-      <option value="1d">最近一天</option>
-      <option value="3d">最近三天</option>
-      <option value="7d" selected>最近一週</option>
-      <option value="1m">最近一個月</option>
-    </select>
-    
-    <label for="maxResults">最大新聞數量:</label>
-    <input id="maxResults" type="number" value="100" min="1" max="1000" />
-    
-    <button id="startBtn">開始爬取</button>
-  </div>
-  
-  <!-- 狀態輸出 -->
-  <div id="status"></div>
-  
+<h1>Google 新聞人名擷取工具</h1>
+<div>
+  <label for="timeRange">新聞時間範圍：</label>
+  <select id="timeRange">
+    <option value="1">最近一天</option>
+    <option value="7" selected>最近一週</option>
+    <option value="30">最近一月</option>
+  </select>
+</div>
+<div>
+  <label for="maxCount">最大新聞數量：</label>
+  <input type="number" id="maxCount" value="100" min="1" max="200">
+</div>
+<button id="startBtn">開始爬取</button>
+<p id="message" style="white-space: pre-wrap;"></p>
 <script>
-const mediaSites = [
-  { domain: "ettoday.net", name: "ETtoday" },
-  { domain: "ltn.com.tw", name: "自由時報" },
-  { domain: "udn.com", name: "聯合報" },
-  { domain: "setn.com", name: "三立新聞" },
-  { domain: "tvbs.com", name: "TVBS新聞" },
-  { domain: "yahoo.com", name: "Yahoo新聞" }
-];
-// 常見中文姓氏列表（部分示例）
-const surnames = ["陳","林","張","李","王","黃","吳","劉","蔡","楊","許","鄭","謝","郭","洪",
-                  "邱","曾","廖","賴","徐","周","葉","蘇","莊","呂","施","孔","曹","嚴","馮",
-                  "高","潘","朱","簡","鍾","彭","游","杜","戴","范","宋","洪","胡","朱","歐陽","司馬","諸葛"];
-                  
-document.getElementById('startBtn').addEventListener('click', () => {
+document.getElementById('startBtn').addEventListener('click', async function() {
   const timeRange = document.getElementById('timeRange').value;
-  const maxResults = parseInt(document.getElementById('maxResults').value, 10) || 100;
-  document.getElementById('status').textContent = "正在搜尋新聞...";
-  
-  // 組合 Google News RSS 查詢URL
-  let siteQuery = mediaSites.map(site => `site:${site.domain}`).join(" OR ");
-  let query = `${siteQuery} when:${timeRange}`;
-  // 注意：需對查詢參數整體做URL編碼
-  let rssUrl = `https://news.google.com/rss/search?hl=zh-TW&gl=TW&ceid=TW:zh-Hant&q=${encodeURIComponent(query)}`;
-  
-  fetch(rssUrl).then(response => response.text()).then(async rssText => {
-    // 解析RSS XML
-    let parser = new DOMParser();
-    let xml = parser.parseFromString(rssText, "text/xml");
-    let items = Array.from(xml.getElementsByTagName('item'));
-    console.log(`RSS returned ${items.length} items.`);
-    let results = [];
-    
-    for (let i = 0; i < items.length && results.length < maxResults; i++) {
-      let item = items[i];
-      let title = item.getElementsByTagName('title')[0].textContent;
-      let link = item.getElementsByTagName('link')[0].textContent;
-      // 從標題提取來源，例如 "XXX - ETtoday" -> "ETtoday"
-      let sourceName = title.split(' - ').pop().trim();
-      // 如有需要，對來源名稱做標準化映射
-      let mapped = mediaSites.find(site => sourceName.includes(site.name));
-      if (mapped) sourceName = mapped.name;
-      
-      try {
-        // 使用 AllOrigins 抓取新聞內容
-        let fetchUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(link);
-        let htmlText = await fetch(fetchUrl).then(res => res.text());
-        // 解析HTML並移除不需要的元素
-        let doc = parser.parseFromString(htmlText, "text/html");
-        let removeTags = ['script','style','noscript','iframe','header','footer','nav'];
-        removeTags.forEach(tag => {
-          doc.querySelectorAll(tag).forEach(node => node.remove());
-        });
-        let bodyText = doc.body ? doc.body.innerText || "" : "";
-        
-        // 簡單的人名提取：找出2-4字的可能姓名
-        let nameCandidates = bodyText.match(/[\u4e00-\u9fff]{2,4}/g) || [];
-        // 過濾人名候選
-        nameCandidates.forEach(name => {
-          if (results.length >= maxResults) return;
-          if (name.length < 2 || name.length > 4) return; // 非2-4字跳過
-          if (!surnames.some(s => name.startsWith(s))) return; // 姓氏不匹配
-          if (name.includes("記者") || name.includes("報導")) return; // 排除職稱或其他詞
-          // 排除可能的外國譯名（姓氏不常見已部分涵蓋），可加更多規則
-          // 排除純暱稱(在正文中暱稱通常不會單獨出現無括號，這裡略)
-          
-          // 尋找註記：括號內容或前綴職稱
-          let note = "";
-          // 在正文中找 "姓名（…）" 的情況
-          let regex = new RegExp(name + "（([^）]+)）");
-          let match = bodyText.match(regex);
-          if (match) {
-            note = match[1];
-            // 過濾不需要的註記
-            if (note.includes("綽號") || note.includes("化名") || note.match(/\d+歲/)) {
-              note = ""; // 若括號內是綽號/化名/年齡，則不要這註記
-            }
-          }
-          // 若沒有括號註記，嘗試找前面的稱謂，如「XXXX姓名」
-          if (!note) {
-            let idx = bodyText.indexOf(name);
-            if (idx > 0) {
-              // 向前找最多6個字的稱呼
-              let prefix = bodyText.substring(Math.max(0, idx-6), idx);
-              // 去掉可能的標點
-              prefix = prefix.replace(/^[^\u4e00-\u9fff]*/, "");
-              if (prefix && prefix.match(/[\u4e00-\u9fff]+/)) {
-                note = prefix;
-              }
-            }
-          }
-          // 如果仍沒有，根據情況可以給預設類型（此處略，可擴充）
-          
-          // 如果取得了有效姓名且未曾加入過，則加入結果
-          if (name && !results.find(r => r.name === name && r.source === sourceName)) {
-            results.push({ name: name, note: note || "", source: sourceName });
-          }
-        });
-      } catch (err) {
-        console.error("Error fetching/parsing article:", err);
+  const maxCount = parseInt(document.getElementById('maxCount').value) || 0;
+  const messageEl = document.getElementById('message');
+  // 簡單驗證輸入
+  if (maxCount <= 0) {
+    messageEl.style.color = 'red';
+    messageEl.textContent = '請輸入有效的新聞數量（至少1）。';
+    return;
+  }
+  // 停用輸入欄位與按鈕
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('timeRange').disabled = true;
+  document.getElementById('maxCount').disabled = true;
+  messageEl.style.color = 'black';
+  messageEl.textContent = '正在爬取新聞，請稍候...';
+  try {
+    const query = '台灣主流媒體新聞';
+    // 加入時間範圍過濾參數（例如 when:7d 表示7天內新聞）
+    const days = parseInt(timeRange);
+    const queryParam = days ? encodeURIComponent(query + ' when:' + days + 'd') : encodeURIComponent(query);
+    const url = 'https://news.google.com/rss/search?q=' + queryParam + '&hl=zh-TW&gl=TW&ceid=TW:zh-Hant';
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    const rssText = await response.text();
+    // 移除 <media:...> 相關標籤以簡化 XML 解析
+    const cleanedRss = rssText.replace(/<\/?media:.*?>/g, '');
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(cleanedRss, 'text/xml');
+    const parseError = xmlDoc.getElementsByTagName('parsererror');
+    if (parseError.length > 0) {
+      throw new Error('Parser error');
+    }
+    const items = xmlDoc.getElementsByTagName('item');
+    if (items.length === 0) {
+      messageEl.style.color = 'red';
+      messageEl.textContent = '找不到任何新聞結果。';
+      return;
+    }
+    const nameSet = new Set();
+    const now = Date.now();
+    let processedCount = 0;
+    const timeThreshold = now - days * 24 * 60 * 60 * 1000;
+    for (let i = 0; i < items.length; i++) {
+      if (processedCount >= maxCount) break;
+      const item = items[i];
+      const pubDateNode = item.getElementsByTagName('pubDate')[0];
+      if (pubDateNode) {
+        const pubDate = new Date(pubDateNode.textContent);
+        if (days && pubDate.getTime() < timeThreshold) {
+          // 跳過超出時間範圍的舊新聞
+          continue;
+        }
       }
-    } // end for items
-    
-    // 構造輸出文字
-    let lines = results.map(r => {
-      let notePart = r.note ? r.note : "人物";  // 若沒有註記，用「人物」或留空
-      return `${r.name}（${notePart}／${r.source}）`;
-    });
-    let outputText = lines.join("\n");
-    
-    // 觸發下載
-    let blob = new Blob([outputText], { type: 'text/plain' });
-    let blobUrl = URL.createObjectURL(blob);
-    let a = document.createElement('a');
-    a.href = blobUrl;
-    a.download = `names_${Date.now()}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    
-    document.getElementById('status').textContent = 
-      "完成！共擷取 " + lines.length + " 筆姓名，檔案已下載。";
-  })
-  .catch(err => {
-    console.error("RSS fetch error", err);
-    document.getElementById('status').textContent = "發生錯誤，請稍後重試。";
-  });
+      processedCount++;
+      // 從 description 中取得新聞摘要（第一個 <p> 的文字）
+      let snippetText = '';
+      const descNode = item.getElementsByTagName('description')[0];
+      if (descNode) {
+        const pNode = descNode.getElementsByTagName('p')[0];
+        if (pNode) {
+          snippetText = pNode.textContent;
+        } else {
+          snippetText = descNode.textContent || '';
+        }
+      }
+      // 使用正則表達式尋找「中文姓名（括號備註）」格式的字串
+      const namePattern = /[\u3400-\u4DBF\u4E00-\u9FFF]{2,4}（[^）]{2,}）/g;
+      const matches = snippetText.matchAll(namePattern);
+      for (const match of matches) {
+        let nameStr = match[0];
+        // 避免藝名：如果括號內容以「本名」起頭，則取代為真實姓名在前（例：「小甜甜（本名張可昀）」→「張可昀（小甜甜）」）
+        const noteContent = nameStr.substring(nameStr.indexOf('（') + 1, nameStr.length - 1);
+        if (noteContent.startsWith('本名')) {
+          const realName = noteContent.substring(2); // 去除「本名」
+          const nickName = nameStr.substring(0, nameStr.indexOf('（'));
+          nameStr = realName + '（' + nickName + '）';
+        }
+        nameSet.add(nameStr);
+      }
+    }
+    if (processedCount === 0) {
+      messageEl.style.color = 'red';
+      messageEl.textContent = '指定時間範圍內沒有找到新聞。';
+    } else if (nameSet.size === 0) {
+      messageEl.style.color = 'red';
+      messageEl.textContent = '未從新聞內容中擷取到人名。';
+    } else {
+      // 生成純文字檔案並觸發下載
+      let content = '';
+      nameSet.forEach(name => {
+        content += name + '\n';
+      });
+      const blob = new Blob([content], { type: 'text/plain' });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = 'names.txt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      messageEl.style.color = 'green';
+      messageEl.textContent = '完成！已下載人名列表.txt';
+    }
+  } catch (error) {
+    console.error(error);
+    messageEl.style.color = 'red';
+    messageEl.textContent = '發生錯誤：無法取得新聞資料。';
+  } finally {
+    // 恢復可輸入狀態
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('timeRange').disabled = false;
+    document.getElementById('maxCount').disabled = false;
+  }
 });
 </script>
 </body>
