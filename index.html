@@ -1,404 +1,239 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8" />
-  <title>新聞爬蟲工具</title>
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; margin: 20px; }
-    h1 { font-size: 1.5em; }
-    .section { margin-bottom: 1.5em; }
-    label { margin-right: 1em; }
-    #progress-container { margin: 10px 0; }
-    #progress-text { font-size: 0.9em; margin-left: 5px; vertical-align: middle; }
-    #output { width: 100%; height: 200px; white-space: pre; font-family: Consolas, monospace; }
-    #output:focus { outline: none; }
-  </style>
+<meta charset="UTF-8" />
+<title>新聞RSS人名擷取工具</title>
+<style>
+  body { font-family: sans-serif; line-height: 1.6; margin: 2em; }
+  h1 { font-size: 1.5em; }
+  .controls { background: #f9f9f9; padding: 1em; border: 1px solid #ccc; }
+  .controls label { display: block; margin: 0.5em 0 0.2em; }
+  .controls input[type="number"] { width: 5em; }
+  .results { margin-top: 1.5em; white-space: pre-wrap; font-family: monospace; }
+  .hidden { display: none; }
+</style>
 </head>
 <body>
-  <h1>新聞爬蟲工具</h1>
-  
-  <div class="section">
-    <label><strong>新聞時間範圍：</strong></label>
-    <label><input type="radio" name="dateRange" value="1" checked> 今日</label>
-    <label><input type="radio" name="dateRange" value="3"> 近三日</label>
-    <label><input type="radio" name="dateRange" value="7"> 近一週</label>
-  </div>
-  
-  <div class="section">
-    <label for="maxCount"><strong>最大搜尋篇數：</strong></label>
-    <input type="number" id="maxCount" value="20" min="1" max="1000" style="width:60px;">
-    <span>篇</span>
-  </div>
-  
-  <div class="section">
-    <label for="delay"><strong>每篇爬取延遲：</strong></label>
-    <input type="number" id="delay" value="2" min="0" max="10" style="width:60px;">
-    <span>秒</span>
-  </div>
-  
-  <div class="section">
-    <label><strong>新聞來源：</strong></label>
-    <label><input type="checkbox" id="srcET" checked> ETtoday新聞雲</label>
-    <label><input type="checkbox" id="srcLTN" checked> 自由時報</label>
-    <!-- 可加更多內建來源 -->
-  </div>
-  
-  <div class="section">
-    <label for="customFeeds"><strong>自訂RSS清單：</strong></label><br>
-    <textarea id="customFeeds" rows="3" style="width:100%;" placeholder="在此輸入其他RSS網址，每行一個"></textarea>
-  </div>
-  
-  <div class="section">
-    <label for="keywords"><strong>標籤關鍵字清單：</strong></label><br>
-    <textarea id="keywords" rows="3" style="width:100%;">啦啦隊,女警,網紅,藝人,模特兒,政治人物</textarea><br>
-    <small>（可自行編輯，逗號分隔不同分類關鍵詞）</small>
-  </div>
-  
-  <button id="startBtn"><strong>開始爬取</strong></button>
-  
-  <div id="progress-container">
-    <progress id="progressBar" value="0" max="0" style="width:80%; height:20px;"></progress>
-    <span id="progress-text"></span>
-  </div>
-  
-  <div class="section">
-    <h3>結果輸出</h3>
-    <textarea id="output" readonly placeholder="爬取結果將顯示於此..."></textarea><br>
-    <button id="downloadBtn" disabled>下載 TXT 檔</button>
-  </div>
-  
+
+<h1>新聞 RSS 人名擷取工具</h1>
+<div class="controls">
+  <label><input type="checkbox" id="src-ltn" checked> 自由時報 (RSS 即時新聞)</label>
+  <label><input type="checkbox" id="src-et" checked> ETtoday 新聞雲 (RSS 即時新聞)</label>
+  <label>擷取每個來源最新 
+    <input type="number" id="newsCount" value="5" min="1" max="50"> 則新聞
+  </label>
+  <label>爬取間隔秒數 
+    <input type="number" id="delaySec" value="2" min="0" max="10"> 秒
+  </label>
+  <label>分類關鍵字清單 (逗號或換行分隔)：<br>
+    <textarea id="categoryKeywords" rows="2" style="width:100%;">女警, 藝人, 啦啦隊員, 網紅, 模特兒, 政治人物</textarea>
+  </label>
+  <button id="startBtn">開始擷取</button>
+  <button id="downloadBtn" disabled>下載結果 TXT</button>
+</div>
+
+<pre id="output" class="results"></pre>
+
 <script>
-document.getElementById('startBtn').addEventListener('click', async () => {
-  // 讀取使用者設定
-  const rangeValue = document.querySelector('input[name="dateRange"]:checked').value;
-  const daysRange = parseInt(rangeValue, 10);  // 1, 3, or 7
-  const maxCount = parseInt(document.getElementById('maxCount').value, 10) || 1;
-  const delaySec = parseFloat(document.getElementById('delay').value) || 0;
-  const includeET = document.getElementById('srcET').checked;
-  const includeLTN = document.getElementById('srcLTN').checked;
-  const customFeedInput = document.getElementById('customFeeds').value.trim();
-  const customFeeds = customFeedInput ? customFeedInput.split(/[\r\n]+/).map(u => u.trim()).filter(u => u) : [];
-  const keywordInput = document.getElementById('keywords').value.trim();
-  const keywordList = keywordInput ? keywordInput.split(/[,，\s]+/).map(k => k.trim()).filter(k => k) : [];
-  
-  // 準備進度顯示
-  const progressBar = document.getElementById('progressBar');
-  const progressText = document.getElementById('progress-text');
-  progressText.textContent = '';
-  progressBar.value = 0;
-  progressBar.max = 0;
-  
-  // 清空之前結果
-  const outputArea = document.getElementById('output');
-  outputArea.value = '';
-  document.getElementById('downloadBtn').disabled = true;
-  
-  // 準備新聞來源URL清單
-  let feedUrls = [];
-  if (includeLTN) {
-    // 自由時報即時新聞 RSS
-    feedUrls.push('https://news.ltn.com.tw/rss/all.xml');
+(async function(){
+  // 常見中文姓氏列表 (單姓)
+  const surnames1 = [
+    "李","王","張","劉","陳","楊","黃","趙","周","吳","徐","孫","朱","馬","胡","郭","林","何","高","梁",
+    "鄭","羅","宋","謝","唐","韓","曹","許","鄧","蕭","馮","曾","程","蔡","彭","潘","袁","于","董","余",
+    "蘇","葉","呂","魏","蔣","田","杜","丁","沈","姜","范","江","傅","鐘","盧","汪","戴","崔","任","陸",
+    "廖","姚","方","金","邱","夏","譚","韋","賈","鄒","石","熊","孟","秦","閻","薛","侯","雷","白","龍",
+    "段","郝","孔","邵","史","毛","常","萬","顧","賴","武","康","賀","嚴","尹","錢","施","牛","洪","龔"
+  ];
+  // 常見複姓列表 (雙字姓氏)
+  const surnames2 = [
+    "歐陽","司馬","上官","夏侯","諸葛","東方","皇甫","段常","南宮","司徒","司空","章佳","那拉",
+    "張簡","范姜","張廖","歐陽", "范姜" // （包含一些台灣常見複姓）
+  ];
+  // Helper: 檢查字符串是否為可能的人名（長度2或3，且符合姓氏規則）
+  function isLikelyName(str) {
+    const len = str.length;
+    if (len < 2 || len > 3) return false;
+    if (len === 2) {
+      // 2字：第一字是常見姓氏即可
+      return surnames1.includes(str[0]);
+    } else if (len === 3) {
+      // 3字：前兩字是複姓 或 第一字是單姓
+      const firstTwo = str.substring(0, 2);
+      if (surnames2.includes(firstTwo)) return true;
+      // 或第一字為單姓且後兩字不全為某些避開字
+      return surnames1.includes(str[0]);
+    }
+    return false;
   }
-  if (includeET) {
-    if (daysRange === 1) {
-      // ETtoday 今日新聞列表頁 (動態最新)
-      feedUrls.push('https://www.ettoday.net/news/news-list.htm');
+  // Helper: 判斷周邊文本是否有分類關鍵字，傳回找到的標籤或空字串
+  function getCategoryForName(name, text, categories) {
+    // 在全文中找該名字的位置，逐一判斷
+    let label = "";
+    let idx = 0;
+    while ((idx = text.indexOf(name, idx)) !== -1) {
+      // 找出該名字所在句子的片段 (從前一個句號或開頭，到下一個句號或段落)
+      let start = text.lastIndexOf('。', idx);
+      let end = text.indexOf('。', idx);
+      if (start === -1) start = 0; else start += 1;
+      if (end === -1) end = text.length;
+      const sentence = text.slice(start, end);
+      // 檢查此句子是否包含分類關鍵詞
+      for (let [keyword, catLabel] of categories) {
+        if (sentence.includes(keyword)) {
+          label = catLabel;
+          break;
+        }
+      }
+      if (label) break;
+      idx += name.length; // 繼續搜尋下一處
+    }
+    return label;
+  }
+  // Helper: 判斷名稱是否為筆名/綽號 (根據上下文)
+  function checkAlias(name, text) {
+    let isAlias = false;
+    let aliasType = "";
+    // 檢查名字後面是否緊跟(化名/筆名/綽號)
+    const after = text.indexOf(name + "（", 0);
+    if (after !== -1) {
+      const seg = text.substring(after, after + name.length + 4);
+      if (seg.includes("（化名")) { isAlias = true; aliasType = "化名"; }
+      else if (seg.includes("（筆名")) { isAlias = true; aliasType = "筆名"; }
+      else if (seg.includes("（綽號")) { isAlias = true; aliasType = "綽號"; }
+    }
+    // 檢查名字前面是否提到綽號/暱稱
+    if (!isAlias) {
+      const beforeIdx = text.indexOf(name);
+      if (beforeIdx !== -1) {
+        const beforeSeg = text.slice(Math.max(0, beforeIdx-3), beforeIdx);
+        if (beforeSeg.includes("綽號") || beforeSeg.includes("暱稱")) {
+          isAlias = true;
+          aliasType = "綽號";
+        }
+      }
+    }
+    return isAlias ? aliasType || "化名" : "";
+  }
+
+  // 綁定按鈕事件
+  document.getElementById('startBtn').onclick = async function() {
+    const useLtn = document.getElementById('src-ltn').checked;
+    const useEt = document.getElementById('src-et').checked;
+    const count = parseInt(document.getElementById('newsCount').value, 10) || 1;
+    const delaySec = parseFloat(document.getElementById('delaySec').value) || 0;
+    // 解析關鍵字清單
+    const catsInput = document.getElementById('categoryKeywords').value;
+    let categories = [];
+    catsInput.split(/[,，\n]/).forEach(kw => {
+      const k = kw.trim();
+      if (k) categories.push([k, k]); // 目前關鍵字即標籤名稱
+    });
+    const output = document.getElementById('output');
+    output.textContent = "擷取中，請稍候...\n";
+    document.getElementById('downloadBtn').disabled = true;
+
+    // 來源RSS URLs
+    const feeds = [];
+    if (useLtn) feeds.push({ name: "自由時報", url: "https://news.ltn.com.tw/rss/all.xml" });
+    if (useEt) feeds.push({ name: "ETtoday", url: "http://feeds.feedburner.com/ettoday/newslist" });
+    const parser = new DOMParser();
+    const results = [];  // {name, label, source} objects
+
+    for (let feed of feeds) {
+      try {
+        const res = await fetch(feed.url);
+        if (!res.ok) throw new Error(`取得 ${feed.name} RSS 失敗: ${res.status}`);
+        const rssText = await res.text();
+        const xmlDoc = parser.parseFromString(rssText, "text/xml");
+        const items = Array.from(xmlDoc.getElementsByTagName("item"));
+        for (let i = 0; i < Math.min(count, items.length); i++) {
+          const item = items[i];
+          // 取得文章連結
+          let link = item.getElementsByTagName("link")[0]?.textContent;
+          if (!link) {
+            // RSS可能使用 guid
+            link = item.getElementsByTagName("guid")[0]?.textContent || "";
+          }
+          if (!link) continue;
+          // 抓取文章內容
+          try {
+            const artRes = await fetch(link);
+            if (!artRes.ok) throw new Error(`${artRes.status}`);
+            const htmlText = await artRes.text();
+            const doc = parser.parseFromString(htmlText, "text/html");
+            const bodyText = doc.body ? doc.body.innerText : "";
+            if (!bodyText) continue;
+            // 尋找人名候選
+            const candidates = bodyText.match(/[\u4e00-\u9fff]{2,3}/g) || [];
+            const seenNames = new Set();
+            for (let cand of candidates) {
+              if (seenNames.has(cand)) continue;
+              seenNames.add(cand);
+              if (!isLikelyName(cand)) continue;
+              // 排除特殊稱謂 (如 張某、李男 等)
+              const secondChar = cand[1];
+              if (secondChar === "某" || secondChar === "男" || secondChar === "女" || secondChar === "姓") {
+                continue;
+              }
+              // 判斷分類標籤
+              let label = getCategoryForName(cand, bodyText, categories);
+              // 判斷是否筆名/綽號
+              const aliasType = checkAlias(cand, bodyText);
+              if (aliasType) {
+                // 如果該名字本身沒有分類標籤，可能是一個暱稱，仍然保留但註記
+                if (!label) label = "（" + aliasType + "）"; 
+                else label += "(" + aliasType + ")";
+              }
+              // 保存結果
+              results.push({ name: cand, label: label || "", source: feed.name });
+            }
+          } catch (err) {
+            console.warn(`無法擷取 ${feed.name} 文章內容: ${link}`, err);
+          }
+          // 間隔延遲
+          if (delaySec > 0 && i < Math.min(count, items.length) - 1) {
+            await new Promise(r => setTimeout(r, delaySec * 1000));
+          }
+        } // end for each item
+      } catch (err) {
+        console.error(`抓取 ${feed.name} RSS 時發生錯誤:`, err);
+      }
+    } // end for each feed
+
+    if (results.length === 0) {
+      output.textContent += "未擷取到任何人名。";
     } else {
-      // ETtoday 指定天數內各日期各分類列表頁
-      const today = new Date();
-      for (let d = 0; d < daysRange; d++) {
-        const date = new Date();
-        date.setDate(today.getDate() - d);
-        const yyyy = date.getFullYear();
-        const mm = String(date.getMonth()+1).padStart(2, '0');
-        const dd = String(date.getDate()).padStart(2, '0');
-        // ETtoday沒有單一全部分類列表，只能透過各分類，這裡列出主要分類代碼
-        const etCategories = [1,17,2,6,9,10,20,30,24,5]; // 政治, 財經, 國際, 社會, 影劇, 體育, 3C, 時尚, 遊戲, 生活 等
-        etCategories.forEach(cat => {
-          feedUrls.push(`https://www.ettoday.net/news/news-list-${yyyy}-${mm}-${dd}-${cat}.htm`);
-        });
+      // 移除重複項目（同姓名同來源重複則去重）
+      const uniqueSet = new Set();
+      const lines = [];
+      for (let item of results) {
+        const key = item.name + "|" + item.label + "|" + item.source;
+        if (uniqueSet.has(key)) continue;
+        uniqueSet.add(key);
+        lines.push(`${item.name}｜${item.label || " "}｜${item.source}`);
       }
+      // 輸出結果
+      output.textContent = lines.join("\n");
+      // 啟用下載按鈕
+      document.getElementById('downloadBtn').disabled = false;
     }
-  }
-  // 加入自訂RSS feed
-  feedUrls = feedUrls.concat(customFeeds);
-  
-  if (feedUrls.length === 0) {
-    alert('請至少選擇一個新聞來源或提供RSS網址');
-    return;
-  }
-  
-  // 取得指定日期範圍的新聞項目列表（標題、連結、時間）
-  let newsItems = [];  // 每項結構: {title, link, pubDate, source}
-  const proxy = 'https://api.allorigins.win/raw?url=';  // AllOrigins 代理前綴:contentReference[oaicite:8]{index=8}
-  
-  for (let feedUrl of feedUrls) {
-    try {
-      const fetchUrl = proxy + encodeURIComponent(feedUrl);
-      const resp = await fetch(fetchUrl);
-      if (!resp.ok) throw new Error(`抓取失敗: ${resp.status}`);
-      const contentType = resp.headers.get('Content-Type') || '';
-      const textData = await resp.text();
-      
-      if (feedUrl.endsWith('.xml') || contentType.includes('xml') || textData.startsWith('<?xml')) {
-        // 處理RSS/XML資料
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(textData, "application/xml");
-        const items = xmlDoc.querySelectorAll('item');
-        items.forEach(item => {
-          const titleNode = item.querySelector('title');
-          const linkNode = item.querySelector('link');
-          const dateNode = item.querySelector('pubDate');
-          if (titleNode && linkNode) {
-            const title = titleNode.textContent.trim();
-            const link = linkNode.textContent.trim();
-            let pubDate = dateNode ? new Date(dateNode.textContent) : null;
-            if (!isNaN(pubDate)) {
-              // 將時區轉為本地時間，以便後續比較
-              pubDate = new Date(pubDate.getTime());
-            } else {
-              pubDate = null;
-            }
-            newsItems.push({ title, link, pubDate, source: getSourceName(link) });
-          }
-        });
-      } else {
-        // 處理HTML列表頁 (ETtoday 列表頁)
-        const parser = new DOMParser();
-        const htmlDoc = parser.parseFromString(textData, "text/html");
-        // 取得列表容器 (ETtoday列表頁內容區的 class)
-        const listContainer = htmlDoc.querySelector('.part_list_2');
-        if (!listContainer) continue;
-        const articles = listContainer.querySelectorAll('h3');
-        articles.forEach(h3 => {
-          const a = h3.querySelector('a');
-          const timeSpan = h3.querySelector('.date');
-          if (a) {
-            const title = a.innerText.trim();
-            let link = a.getAttribute('href').trim();
-            // ETtoday連結為相對路徑，加上主域名
-            if (link && link.startsWith('/news/')) {
-              link = 'https://www.ettoday.net' + link;
-            }
-            // ETtoday列表時間：格式可能為 "2025年07月11日 19:30" 或 "07/11 19:30"
-            let pubDate = null;
-            if (timeSpan) {
-              let timeText = timeSpan.innerText.trim();
-              // 嘗試解析時間
-              if (/^\d{2}\/\d{2}/.test(timeText)) {
-                // 若格式為 "MM/DD HH:MM"，補上年份
-                const nowYear = new Date().getFullYear();
-                timeText = `${nowYear}/${timeText}`; // e.g. "2025/07/11 19:30"
-              }
-              // 將中文日期格式轉換
-              timeText = timeText.replace(/[年月日]/g, (m) => {
-                return m === '年' ? '/' : (m === '月' ? '/' : '');
-              });
-              pubDate = new Date(timeText);
-              if (isNaN(pubDate)) {
-                pubDate = null;
-              }
-            }
-            newsItems.push({ title, link, pubDate, source: getSourceName(link) });
-          }
-        });
-      }
-    } catch (err) {
-      console.error(`來源抓取失敗: ${feedUrl}`, err);
-    }
-  }
-  
-  // 依據時間範圍過濾新聞項目
-  const cutoff = new Date();
-  cutoff.setHours(0,0,0,0);  // 今天零點
-  if (daysRange > 1) {
-    cutoff.setDate(cutoff.getDate() - (daysRange - 1));
-  }
-  // 篩掉發佈時間早於區間的新聞 (對於無法解析時間的保留，以防萬一)
-  newsItems = newsItems.filter(item => {
-    return !item.pubDate || item.pubDate >= cutoff;
-  });
-  
-  // 依發佈時間排序（新的在前，有時間的排前面，無時間的放最後）
-  newsItems.sort((a, b) => {
-    if (!a.pubDate && !b.pubDate) return 0;
-    if (!a.pubDate) return 1;
-    if (!b.pubDate) return -1;
-    return b.pubDate - a.pubDate;
-  });
-  
-  // 限制為最多 N 篇
-  if (newsItems.length > maxCount) {
-    newsItems = newsItems.slice(0, maxCount);
-  }
-  
-  // 設定進度條總數
-  progressBar.max = newsItems.length;
-  progressBar.value = 0;
-  progressText.textContent = `0 / ${newsItems.length}`;
-  
-  // 定義一個工具函數來暫停指定秒數（使用Promise）
-  const delay = (sec) => new Promise(res => setTimeout(res, sec * 1000));
-  
-  let resultLines = [];
-  let failCount = 0;
-  
-  // 關鍵字對應的標籤分類名稱（此處關鍵字本身即分類名稱）
-  const keywordTags = keywordList.reduce((map, kw) => {
-    if (kw) map[kw] = kw;
-    return map;
-  }, {});
-  
-  // 處理每篇新聞內容
-  for (let i = 0; i < newsItems.length; i++) {
-    const { title, link, pubDate, source } = newsItems[i];
-    try {
-      // 抓取新聞頁內容
-      const resp = await fetch(proxy + encodeURIComponent(link));
-      if (!resp.ok) throw new Error(`文章抓取失敗: ${resp.status}`);
-      const htmlText = await resp.text();
-      const doc = new DOMParser().parseFromString(htmlText, "text/html");
-      // 擷取文章正文文字：不同來源使用不同選擇器
-      let contentText = '';
-      if (source.includes('ETtoday')) {
-        const storyDiv = doc.querySelector('.story');
-        if (storyDiv) {
-          // 移除不必要的元素，如內文的記者註解等（假設<strong>標記記者段）
-          storyDiv.querySelectorAll('script, style, .shareBar, .ads, iframe').forEach(el => el.remove());
-          contentText = storyDiv.innerText.trim();
-        }
-      } else if (source.includes('自由時報') || source.includes('ltn.com.tw')) {
-        // 自由時報內文區域可能class為text字樣
-        const textDiv = doc.querySelector('div.text, div.contents');
-        if (textDiv) {
-          textDiv.querySelectorAll('script, style, .share, .photo, iframe').forEach(el => el.remove());
-          contentText = textDiv.innerText.trim();
-        }
-      } else {
-        // 其他來源泛用處理：取<body>去除常見不相關部分
-        let body = doc.body.cloneNode(true);
-        // 移除常見非內容元素
-        body.querySelectorAll('script, style, nav, header, footer, aside, form').forEach(el => el.remove());
-        contentText = body.innerText.trim();
-      }
-      if (!contentText) {
-        console.warn('無法擷取內容或內容為空：', link);
-      }
-      // 將標題也加入內容一起檢索
-      let fullText = title + '。' + contentText;
-      
-      // 分句（依據中文句讀符號以及換行）
-      const sentences = fullText.split(/[\n。！？?!\r]/).filter(s => s.trim().length > 0);
-      
-      // 在內容中提取可能的人名 (2或3個連續中文)
-      let nameSet = new Set();
-      for (let sentence of sentences) {
-        const matches = sentence.match(/[\u4e00-\u9fff]{2,3}/g);
-        if (matches) {
-          matches.forEach(name => {
-            // 簡單排除過常見的非人名詞 (例如國家名稱或常用詞) - 此處可視需要擴充排除詞
-            // 例如: 如果需要，可在此排除「政府」「總統」等。但本工具暫不細化排除。
-            nameSet.add(name);
-          });
-        }
-      }
-      
-      // 對每個候選人名進行標籤分類判斷
-      for (let name of nameSet) {
-        let labels = new Set();
-        let roleSummary = '';
-        for (let sentence of sentences) {
-          if (sentence.includes(name)) {
-            for (let kw of Object.keys(keywordTags)) {
-              if (sentence.includes(kw)) {
-                labels.add(keywordTags[kw]);
-                // 取該句中包含關鍵詞的短語作為角色摘要
-                // 例如「啦啦隊女神林襄」則摘要為「啦啦隊女神」
-                const idx = sentence.indexOf(name);
-                const kwIdx = sentence.indexOf(kw);
-                let phrase = sentence;
-                if (kwIdx !== -1) {
-                  // 擷取關鍵詞所在子句
-                  const before = sentence.lastIndexOf('，', kwIdx);
-                  const start = before !== -1 ? before + 1 : kwIdx;
-                  const after = sentence.indexOf('，', kwIdx);
-                  const end = after !== -1 ? after : sentence.length;
-                  phrase = sentence.substring(start, idx); 
-                }
-                roleSummary = phrase ? phrase.trim() : roleSummary;
-              }
-            }
-          }
-        }
-        if (labels.size === 0) {
-          labels.add('無標籤');
-        }
-        // 將多個標籤合併成逗號分隔字串
-        const labelStr = Array.from(labels).join(',');
-        // 若無角色摘要且存在標籤，用第一個標籤作為摘要
-        if (!roleSummary && labels.size > 0 && !labels.has('無標籤')) {
-          roleSummary = Array.from(labels)[0];
-        }
-        if (!roleSummary) roleSummary = '（無摘要）';
-        // 輸出格式：姓名｜標籤｜來源｜角色摘要
-        const sourceName = source || getSourceName(link);
-        resultLines.push(`${name}｜${labelStr}｜${sourceName}｜${roleSummary}`);
-      }
-    } catch (err) {
-      console.error(`處理文章失敗: ${link}`, err);
-      failCount++;
-    }
-    // 更新進度
-    progressBar.value = i + 1;
-    progressText.textContent = `${i + 1} / ${newsItems.length}`;
-    // 延遲指定秒數再處理下一篇
-    if (delaySec > 0 && i < newsItems.length - 1) {
-      await delay(delaySec);
-    }
-  }
-  
-  // 顯示結果
-  if (resultLines.length === 0) {
-    outputArea.value = failCount > 0 
-      ? `處理完成，但無成功取得的資料。（可能全部失敗，共 ${failCount} 篇失敗）`
-      : '找不到任何符合條件的新聞資料。';
-  } else {
-    outputArea.value = resultLines.join("\n");
-  }
-  // 啟用下載按鈕
-  document.getElementById('downloadBtn').disabled = false;
-  // 如果有失敗情況，提示用戶
-  if (failCount > 0) {
-    outputArea.value += `\n（有 ${failCount} 篇新聞抓取失敗或解析失敗）`;
-  }
-});
+  };
 
-// 下載TXT檔案
-document.getElementById('downloadBtn').addEventListener('click', () => {
-  const text = document.getElementById('output').value;
-  const blob = new Blob([text], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'news_results.txt';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-});
-
-// 根據URL推斷來源名稱的輔助函數
-function getSourceName(url) {
-  try {
-    const u = new URL(url);
-    if (u.hostname.includes('ettoday.net')) return 'ETtoday新聞雲';
-    if (u.hostname.includes('ltn.com.tw')) return '自由時報';
-    if (u.hostname) {
-      return u.hostname;
-    }
-  } catch (e) { /* ignore invalid URL */ }
-  return url;
-}
+  // 下載 TXT 功能
+  document.getElementById('downloadBtn').onclick = function() {
+    const text = document.getElementById('output').textContent;
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "names.txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+})();
 </script>
+
 </body>
 </html>
