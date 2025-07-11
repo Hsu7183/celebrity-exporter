@@ -1,35 +1,11 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <title>名人真實姓名輸出工具</title>
-  <style>
-    body { font-family: sans-serif; padding: 2em; }
-    textarea { width: 100%; height: 300px; }
-    button { margin-top: 1em; padding: 0.5em 1em; font-size: 1em; }
-  </style>
+  <meta charset="UTF-8" />
+  <title>新聞人名輸出工具</title>
 </head>
 <body>
-  <h1>名人真實姓名輸出工具</h1>
-  <p>請在下方貼上「真實姓名（備註）」格式名單，例如：</p>
-  <code>李星宿（星宿啦啦隊）</code>
-  <textarea id="namelist"></textarea>
-  <br />
-  <button onclick="downloadTxt()">輸出 TXT</button>
-
-  <script>
-    function downloadTxt() {
-      const text = document.getElementById("namelist").value;
-      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "celebrity_names.txt";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-  </script>
+  <h1>新聞人名 TXT 匯出工具</h1>
+  <button onclick="alert('這裡會未來放爬蟲與下載功能')">開始擷取新聞並匯出</button>
 </body>
 </html>
