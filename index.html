@@ -1,44 +1,291 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>新聞人名擷取工具</title>
-  <link rel="stylesheet" href="styles.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新聞爬取工具</title>
+<style>
+body { font-family: Arial, sans-serif; line-height:1.6; margin: 20px; }
+h1 { font-size: 1.5em; }
+label { margin-right: 10px; }
+select, input { margin: 5px 10px 5px 0; }
+#progress-container { margin: 10px 0; width: 100%; background: #eee; border-radius: 5px; overflow: hidden; }
+#progress-bar { height: 20px; width: 0%; background: #4caf50; }
+#progress-percent { font-weight: bold; }
+#output { white-space: pre-wrap; background: #f9f9f9; padding: 10px; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; }
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>台灣新聞人名擷取工具</h1>
-    <!-- 控制面板區 -->
-    <div class="controls">
-      <label for="timeRange">時間區間：</label>
-      <select id="timeRange">
-        <option value="1">今日</option>
-        <option value="3">最近三天</option>
-        <option value="7">最近一週</option>
-        <option value="30">最近一個月</option>
-      </select>
-      
-      <label for="maxNews">最大新聞數量：</label>
-      <input type="number" id="maxNews" value="100" min="1" max="1000" />
-      
-      <button id="startBtn">開始爬取</button>
-      <button id="cancelBtn" disabled>取消爬取</button>
-    </div>
-    
-    <!-- 進度條區 -->
-    <div class="progress-area">
-      <progress id="progressBar" value="0" max="100"></progress>
-      <span id="progressText">0.00%</span>
-    </div>
-    
-    <!-- 狀態訊息區 -->
-    <div id="statusMessage" class="status"></div>
-    
-    <!-- 下載按鈕（預設隱藏） -->
-    <button id="downloadBtn" style="display:none;">下載 TXT</button>
-  </div>
-  
-  <script src="script.js"></script>
+<h1>新聞爬取工具</h1>
+<div>
+  <label for="timeRange">新聞時間範圍:</label>
+  <select id="timeRange">
+    <option value="today">今天</option>
+    <option value="3days">近三天</option>
+    <option value="week">近一週</option>
+    <option value="month">近一個月</option>
+  </select>
+</div>
+<div>
+  <label for="maxCount">最多擷取新聞數量:</label>
+  <select id="maxCount">
+    <option value="100">100</option>
+    <option value="200">200</option>
+    <option value="500">500</option>
+  </select>
+</div>
+<div>
+  <label for="delay">每次請求延遲(秒):</label>
+  <input type="number" id="delay" value="1" min="0" max="10" step="0.5">
+</div>
+<button id="startBtn">開始爬取</button>
+<div id="progress-container" style="display:none;">
+  <div id="progress-bar"></div>
+</div>
+<div id="progress-percent">0.00%</div>
+<div id="output"></div>
+<script>
+async function startCrawl() {
+  const startBtn = document.getElementById('startBtn');
+  const progressContainer = document.getElementById('progress-container');
+  const progressBar = document.getElementById('progress-bar');
+  const progressPercent = document.getElementById('progress-percent');
+  const outputDiv = document.getElementById('output');
+  // 禁用按鈕避免重複點擊
+  startBtn.disabled = true;
+  outputDiv.textContent = '';
+  // 取得用戶設定
+  const rangeValue = document.getElementById('timeRange').value;
+  const maxCount = parseInt(document.getElementById('maxCount').value);
+  const delaySec = parseFloat(document.getElementById('delay').value) || 0;
+  const delayMs = delaySec * 1000;
+  // 計算時間範圍
+  let endDate = new Date();
+  endDate.setHours(23, 59, 59, 999);
+  let startDate = new Date();
+  if (rangeValue === 'today') {
+    startDate.setHours(0, 0, 0, 0);
+  } else if (rangeValue === '3days') {
+    startDate.setDate(startDate.getDate() - 2);
+    startDate.setHours(0, 0, 0, 0);
+  } else if (rangeValue === 'week') {
+    startDate.setDate(startDate.getDate() - 6);
+    startDate.setHours(0, 0, 0, 0);
+  } else if (rangeValue === 'month') {
+    startDate.setDate(startDate.getDate() - 29);
+    startDate.setHours(0, 0, 0, 0);
+  }
+  // 定義要爬取的新聞來源
+  const sources = [
+    { name: 'ETtoday', type: 'list' },
+    { name: '自由時報', type: 'rss', url: 'https://news.ltn.com.tw/rss/all.xml' },
+    { name: '聯合報', type: 'rss', url: 'https://udn.com/udnrss/latest.xml' },
+    { name: 'TVBS', type: 'html', url: 'https://news.tvbs.com.tw/' },
+    { name: '三立', type: 'html', url: 'https://www.setn.com/ViewAll.aspx' },
+    { name: '東森', type: 'html', url: 'https://news.ebc.net.tw/' },
+    { name: '中時', type: 'html', url: 'https://www.chinatimes.com/' },
+    { name: '中天', type: 'html', url: 'https://ctinews.com/' },
+    { name: '民視', type: 'html', url: 'https://www.ftvnews.com.tw/' },
+    { name: 'Yahoo奇摩新聞', type: 'html', url: 'https://tw.news.yahoo.com/archive/' }
+  ];
+  const perSiteMax = Math.ceil(maxCount / sources.length);
+  let fetchedArticlesCount = 0;
+  let outputLines = [];
+  // 顯示進度條
+  progressContainer.style.display = 'block';
+  progressBar.style.width = '0%';
+  progressPercent.textContent = '0.00%';
+  // 工具函式：使用 AllOrigins API 獲取文字（繞過 CORS）
+  async function fetchText(url) {
+    const apiURL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+    const res = await fetch(apiURL);
+    return await res.text();
+  }
+  // 工具函式：將 HTML 字串轉為 DOM
+  function parseHTML(html) {
+    return new DOMParser().parseFromString(html, 'text/html');
+  }
+  // 工具函式：從文字中擷取中文人名
+  function extractNames(text) {
+    const surnameList = [
+      '陳','林','黃','張','李','王','吳','劉','蔡','楊','許','鄭','謝','曾','邱','洪','郭','周','胡','葉',
+      '蘇','何','韓','沈','莊','呂','施','宋','鄧','范','曹','薛','丁','魏','阮','蕭','潘','田','董','杜',
+      '馮','朱','程','侯','夏','石','姚','方','羅','高','馬','張','鍾','簡','銀','紀','白','薛','柳','詹',
+      '歐陽','司馬','上官','夏侯','諸葛','東方','公孫','慕容','司徒'
+    ];
+    const singleSurnamePattern = surnameList.filter(s => s.length === 1).join('|');
+    const doubleSurnamePattern = surnameList.filter(s => s.length === 2).join('|');
+    let regex;
+    if (doubleSurnamePattern) {
+      regex = new RegExp(`((?:${doubleSurnamePattern})[\\u4e00-\\u9fff]{1,2}|(?:${singleSurnamePattern})[\\u4e00-\\u9fff]{1,2})`, 'g');
+    } else {
+      regex = new RegExp(`((?:${singleSurnamePattern})[\\u4e00-\\u9fff]{1,2})`, 'g');
+    }
+    const names = new Set();
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      names.add(match[1]);
+    }
+    return Array.from(names);
+  }
+  // 逐一處理各新聞來源
+  for (let source of sources) {
+    if (outputLines.length >= maxCount) break;
+    const siteName = source.name;
+    try {
+      let articleLinks = [];
+      if (source.type === 'rss') {
+        // 取得 RSS Feed
+        const xmlText = await fetchText(source.url);
+        const xmlDoc = new DOMParser().parseFromString(xmlText, 'text/xml');
+        const items = Array.from(xmlDoc.getElementsByTagName('item'));
+        for (let item of items) {
+          if (articleLinks.length >= perSiteMax) break;
+          const linkNode = item.getElementsByTagName('link')[0];
+          const dateNode = item.getElementsByTagName('pubDate')[0];
+          if (linkNode) {
+            const link = linkNode.textContent.trim();
+            let include = true;
+            if (dateNode) {
+              const pubTime = new Date(dateNode.textContent);
+              if (pubTime < startDate || pubTime > endDate) {
+                include = false;
+              }
+            }
+            if (include) articleLinks.push(link);
+          }
+        }
+      } else if (source.type === 'list') {
+        // ETtoday 每日新聞列表
+        let dateCursor = new Date(endDate);
+        while (dateCursor >= startDate && articleLinks.length < perSiteMax) {
+          const year = dateCursor.getFullYear();
+          const month = dateCursor.getMonth() + 1;
+          const day = dateCursor.getDate();
+          const listURL = `https://www.ettoday.net/news/news-list-${year}-${month}-${day}-0.htm`;
+          try {
+            const html = await fetchText(listURL);
+            const doc = parseHTML(html);
+            const items = doc.querySelectorAll('div.part_list_2 > h3');
+            items.forEach(item => {
+              if (articleLinks.length < perSiteMax) {
+                const timeSpan = item.querySelector('span.date');
+                const aTag = item.querySelector('a');
+                if (aTag) {
+                  let articleTime = null;
+                  if (timeSpan) {
+                    const timeText = timeSpan.textContent;
+                    if (timeText.includes('年')) {
+                      // 例如 "2025年07月11日 11:50"
+                      articleTime = new Date(timeText.replace(/年|月/g, '-').replace('日', ''));
+                    } else if (timeText.includes('/')) {
+                      // 例如 "07/11 11:50"
+                      articleTime = new Date(`${year}/${timeText}`);
+                    } else {
+                      articleTime = new Date(`${year}-${month}-${day} ${timeText}`);
+                    }
+                  }
+                  if (!articleTime || (articleTime >= startDate && articleTime <= endDate)) {
+                    articleLinks.push(aTag.href);
+                  }
+                }
+              }
+            });
+          } catch (e) {
+            console.warn('ETtoday 列表抓取失敗:', listURL);
+          }
+          dateCursor.setDate(dateCursor.getDate() - 1);
+        }
+      } else if (source.type === 'html') {
+        // 一般 HTML 頁面
+        const html = await fetchText(source.url);
+        const doc = parseHTML(html);
+        const anchors = doc.querySelectorAll('a');
+        anchors.forEach(a => {
+          if (articleLinks.length >= perSiteMax) return;
+          let href = a.getAttribute('href');
+          if (!href) return;
+          // 處理相對網址
+          if (href.startsWith('//')) {
+            href = location.protocol + href;
+          } else if (href.startsWith('/')) {
+            try {
+              const base = new URL(source.url);
+              href = base.origin + href;
+            } catch (err) {}
+          }
+          // 過濾出可能的新聞連結
+          try {
+            const urlObj = new URL(href);
+            if (!urlObj.hostname.includes(new URL(source.url).hostname)) return;
+          } catch { return; }
+          if (href.match(/\d{4}\/\d/) || href.match(/\d{6,}/) || href.includes('/news') || href.includes('article')) {
+            if (!/\.(jpg|png|gif|pdf)$/.test(href)) {
+              articleLinks.push(href);
+            }
+          }
+        });
+      }
+      // 依取得的連結數量進行文章內容擷取
+      for (let link of articleLinks) {
+        if (outputLines.length >= maxCount) break;
+        try {
+          const articleHtml = await fetchText(link);
+          // 延遲請求以避免觸發風控
+          if (delayMs > 0) {
+            await new Promise(res => setTimeout(res, delayMs));
+          }
+          fetchedArticlesCount++;
+          // 更新進度條百分比
+          const estimatedTotal = Math.min(maxCount, perSiteMax * sources.length);
+          const percent = Math.min((fetchedArticlesCount / estimatedTotal) * 100, 100);
+          progressBar.style.width = percent.toFixed(2) + '%';
+          progressPercent.textContent = percent.toFixed(2) + '%';
+          // 解析文章內容
+          const articleDoc = parseHTML(articleHtml);
+          articleDoc.querySelectorAll('script, style').forEach(n => n.remove());
+          const titleText = articleDoc.querySelector('title') ? articleDoc.querySelector('title').innerText : '';
+          let contentText = '';
+          const paragraphs = articleDoc.querySelectorAll('p');
+          if (paragraphs.length > 0) {
+            paragraphs.forEach(p => {
+              if (p.innerText) contentText += p.innerText + '\n';
+            });
+          } else {
+            contentText = articleDoc.body ? articleDoc.body.innerText : '';
+          }
+          const fullText = titleText + '\n' + contentText;
+          const names = extractNames(fullText);
+          for (let name of names) {
+            outputLines.push(`${name}（${siteName}）`);
+            if (outputLines.length >= maxCount) break;
+          }
+        } catch (err) {
+          console.warn(`擷取 ${siteName} 文章失敗:`, link, err);
+        }
+      }
+    } catch (e) {
+      console.warn(`來源 ${siteName} 處理時出錯:`, e);
+    }
+  }
+  // 移除重複的人名 (相同新聞來源下)
+  outputLines = Array.from(new Set(outputLines));
+  outputDiv.textContent = outputLines.join('\n');
+  // 自動下載純文字檔
+  const blob = new Blob([outputLines.join('\n')], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const downloadLink = document.createElement('a');
+  downloadLink.href = url;
+  downloadLink.download = 'names.txt';
+  document.body.appendChild(downloadLink);
+  downloadLink.click();
+  document.body.removeChild(downloadLink);
+  // 重置按鈕和進度顯示
+  startBtn.disabled = false;
+  progressBar.style.width = '100%';
+  progressPercent.textContent = '100.00%';
+}
+document.getElementById('startBtn').addEventListener('click', startCrawl);
+</script>
 </body>
 </html>
