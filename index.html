@@ -2,290 +2,221 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>新聞爬取工具</title>
+<title>新聞人名爬蟲工具</title>
 <style>
-body { font-family: Arial, sans-serif; line-height:1.6; margin: 20px; }
-h1 { font-size: 1.5em; }
-label { margin-right: 10px; }
-select, input { margin: 5px 10px 5px 0; }
-#progress-container { margin: 10px 0; width: 100%; background: #eee; border-radius: 5px; overflow: hidden; }
-#progress-bar { height: 20px; width: 0%; background: #4caf50; }
-#progress-percent { font-weight: bold; }
-#output { white-space: pre-wrap; background: #f9f9f9; padding: 10px; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; }
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  label { font-weight: bold; margin-right: 5px; }
+  select, input { margin-bottom: 10px; }
+  #progress-container { margin-top: 20px; }
+  #progress-bar { width: 100%; height: 20px; }
+  #errorLog { color: red; white-space: pre-wrap; margin-top: 10px; }
 </style>
 </head>
 <body>
-<h1>新聞爬取工具</h1>
+<h1>台灣新聞人名爬蟲工具</h1>
 <div>
-  <label for="timeRange">新聞時間範圍:</label>
+  <label for="timeRange">新聞時間區間：</label>
   <select id="timeRange">
-    <option value="today">今天</option>
-    <option value="3days">近三天</option>
-    <option value="week">近一週</option>
-    <option value="month">近一個月</option>
+    <option value="1d">今日</option>
+    <option value="3d">近三天</option>
+    <option value="7d">近一週</option>
+    <option value="1m">近一個月</option>
   </select>
 </div>
 <div>
-  <label for="maxCount">最多擷取新聞數量:</label>
-  <select id="maxCount">
-    <option value="100">100</option>
-    <option value="200">200</option>
-    <option value="500">500</option>
-  </select>
+  <label for="maxResults">最大搜尋新聞數量：</label>
+  <input type="number" id="maxResults" min="1" max="300" value="50"> 篇
 </div>
 <div>
-  <label for="delay">每次請求延遲(秒):</label>
-  <input type="number" id="delay" value="1" min="0" max="10" step="0.5">
+  <label for="delaySeconds">每則延遲秒數：</label>
+  <input type="number" id="delaySeconds" min="0" max="5" value="1"> 秒
 </div>
 <button id="startBtn">開始爬取</button>
-<div id="progress-container" style="display:none;">
-  <div id="progress-bar"></div>
+<div id="progress-container">
+  <progress id="progressBar" value="0" max="100"></progress>
+  <span id="progressText">0.00%</span>
 </div>
-<div id="progress-percent">0.00%</div>
-<div id="output"></div>
+<div id="errorLog"></div>
+<a id="downloadLink" style="display:none;"></a>
 <script>
-async function startCrawl() {
-  const startBtn = document.getElementById('startBtn');
-  const progressContainer = document.getElementById('progress-container');
-  const progressBar = document.getElementById('progress-bar');
-  const progressPercent = document.getElementById('progress-percent');
-  const outputDiv = document.getElementById('output');
-  // 禁用按鈕避免重複點擊
-  startBtn.disabled = true;
-  outputDiv.textContent = '';
-  // 取得用戶設定
-  const rangeValue = document.getElementById('timeRange').value;
-  const maxCount = parseInt(document.getElementById('maxCount').value);
-  const delaySec = parseFloat(document.getElementById('delay').value) || 0;
-  const delayMs = delaySec * 1000;
-  // 計算時間範圍
-  let endDate = new Date();
-  endDate.setHours(23, 59, 59, 999);
-  let startDate = new Date();
-  if (rangeValue === 'today') {
-    startDate.setHours(0, 0, 0, 0);
-  } else if (rangeValue === '3days') {
-    startDate.setDate(startDate.getDate() - 2);
-    startDate.setHours(0, 0, 0, 0);
-  } else if (rangeValue === 'week') {
-    startDate.setDate(startDate.getDate() - 6);
-    startDate.setHours(0, 0, 0, 0);
-  } else if (rangeValue === 'month') {
-    startDate.setDate(startDate.getDate() - 29);
-    startDate.setHours(0, 0, 0, 0);
+// 常見單字姓氏列表（節選常見姓氏508個）
+const singleSurnames = ["赵","钱","孙","李","周","吴","郑","王","冯","陈","褚","卫","蒋","沈","韩","杨","朱","秦","尤","许","何","吕","施","张","孔","曹","严","华","金","魏","陶","姜","戚","谢","邹","喻","柏","水","窦","章","云","苏","潘","葛","奚","范","彭","郎","鲁","韦","昌","马","苗","凤","花","方","俞","任","袁","柳","酆","鲍","史","唐","费","廉","岑","薛","雷","贺","倪","汤","滕","殷","罗","毕","郝","邬","安","常","乐","于","时","傅","皮","卞","齐","康","伍","余","元","卜","顾","孟","平","黄","和","穆","萧","尹","姚","邵","湛","汪","祁","毛","禹","狄","米","贝","明","臧","计","伏","成","戴","谈","宋","茅","庞","熊","纪","舒","屈","项","祝","董","梁","杜","阮","蓝","闵","席","季","麻","强","贾","路","娄","危","江","童","颜","郭","梅","盛","林","刁","钟","徐","邱","骆","高","夏","蔡","田","樊","胡","凌","霍","虞","万","支","柯","昝","管","卢","莫","经","房","裘","缪","干","解","应","宗","丁","宣","贲","邓","郁","单","杭","洪","包","诸","左","石","崔","吉","钮","龚","程","嵇","邢","滑","裴","陆","荣","翁","荀","羊","於","惠","甄","麴","家","封","芮","羿","储","靳","汲","邴","糜","松","井","段","富","巫","乌","焦","巴","弓","牧","隗","山","谷","车","侯","宓","蓬","全","郗","班","仰","秋","仲","伊","宫","宁","仇","栾","暴","甘","钭","厉","戎","祖","武","符","刘","景","詹","束","龙","叶","幸","司","韶","郜","黎","蓟","薄","印","宿","白","怀","蒲","邰","从","鄂","索","咸","籍","赖","卓","蔺","屠","蒙","池","乔","阴","欎","胥","能","苍","双","闻","莘","党","翟","谭","贡","劳","逄","姬","申","扶","堵","冉","宰","郦","雍","舄","璩","桑","桂","濮","牛","寿","通","边","扈","燕","冀","郏","浦","尚","农","温","别","庄","晏","柴","瞿","阎","充","慕","连","茹","习","宦","艾","鱼","容","向","古","易","慎","戈","廖","庾","终","暨","居","衡","步","都","耿","满","弘","匡","国","文","寇","广","禄","阙","东","殴","殳","沃","利","蔚","越","夔","隆","师","巩","厍","聂","晁","勾","敖","融","冷","訾","辛","阚","那","简","饶","空","曾","毋","沙","乜","养","鞠","须","丰","巢","关","蒯","相","查","後","荆","红","游","竺","权","逯","盖","益","桓","公","仉","督","盖","逯","库","郏","逢","阴","薄","厉","稽"];  // 略去部分罕見姓氏
+// 常見複姓列表（兩字姓，共約60個）
+const multiSurnames = ["万俟","司马","上官","欧阳","夏侯","诸葛","闻人","东方","赫连","皇甫","尉迟","公羊","澹台","公冶","宗政","濮阳","淳于","单于","太叔","申屠","公孙","仲孙","轩辕","令狐","钟离","宇文","长孙","慕容","鲜于","闾丘","司徒","司空","亓官","司寇","子车","颛孙","端木","巫马","公西","漆雕","乐正","壤驷","公良","拓跋","夹谷","宰父","谷梁","段干","百里","东郭","南门","呼延","归海","羊舌","微生","南宫","墨","南宫","赏","伯","佴","佘","佟","第五","言","福"];
+const surnameSet = new Set(singleSurnames);
+const multiSurnameSet = new Set(multiSurnames);
+
+// 通用函式：使用 AllOrigins 代理抓取文本內容
+async function fetchText(url) {
+  const response = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url));
+  if (!response.ok) {
+    throw new Error(response.status + " " + response.statusText);
   }
-  // 定義要爬取的新聞來源
-  const sources = [
-    { name: 'ETtoday', type: 'list' },
-    { name: '自由時報', type: 'rss', url: 'https://news.ltn.com.tw/rss/all.xml' },
-    { name: '聯合報', type: 'rss', url: 'https://udn.com/udnrss/latest.xml' },
-    { name: 'TVBS', type: 'html', url: 'https://news.tvbs.com.tw/' },
-    { name: '三立', type: 'html', url: 'https://www.setn.com/ViewAll.aspx' },
-    { name: '東森', type: 'html', url: 'https://news.ebc.net.tw/' },
-    { name: '中時', type: 'html', url: 'https://www.chinatimes.com/' },
-    { name: '中天', type: 'html', url: 'https://ctinews.com/' },
-    { name: '民視', type: 'html', url: 'https://www.ftvnews.com.tw/' },
-    { name: 'Yahoo奇摩新聞', type: 'html', url: 'https://tw.news.yahoo.com/archive/' }
+  return await response.text();
+}
+
+// 從給定文字中提取中文姓名的函式
+function extractNamesFromText(text) {
+  const namesFound = new Set();
+  const len = text.length;
+  for (let i = 0; i < len; i++) {
+    const ch = text[i];
+    if (!ch.match(/[\u4e00-\u9fff]/)) continue;  // 非中文字符跳過
+    // 檢查兩字姓
+    if (i < len - 1) {
+      const twoChars = text.substr(i, 2);
+      if (multiSurnameSet.has(twoChars)) {
+        const surname = twoChars;
+        let j = i + 2;
+        if (j < len && /[\u4e00-\u9fff]/.test(text[j])) {
+          // 姓名：複姓 + 單名
+          namesFound.add(surname + text[j]);
+          if (j + 1 < len && /[\u4e00-\u9fff]/.test(text[j+1])) {
+            // 姓名：複姓 + 雙名
+            namesFound.add(surname + text[j] + text[j+1]);
+          }
+        }
+        i += surname.length - 1;  // 跳過複姓的第二字，避免重覆處理
+        continue;
+      }
+    }
+    // 檢查單字姓
+    if (surnameSet.has(ch)) {
+      const surname = ch;
+      if (i + 1 < len && /[\u4e00-\u9fff]/.test(text[i+1])) {
+        // 姓名：單姓 + 單名
+        namesFound.add(surname + text[i+1]);
+        if (i + 2 < len && /[\u4e00-\u9fff]/.test(text[i+2])) {
+          // 姓名：單姓 + 雙名
+          namesFound.add(surname + text[i+1] + text[i+2]);
+        }
+      }
+    }
+  }
+  // 過濾掉包含語助詞/虛詞的非姓名組合
+  const invalidChars = new Set(['的','了','著','嗎','嘛','吗','吧','呢','啊','呀','麼','么','是','及','與','与']);
+  const finalNames = [];
+  for (let name of namesFound) {
+    if (name.length < 2) continue;
+    let drop = false;
+    for (let k = 1; k < name.length; k++) {
+      if (invalidChars.has(name[k])) {  // 若姓名中（除姓氏外）包含無意義字詞，則視為非姓名
+        drop = true;
+        break;
+      }
+    }
+    if (!drop) {
+      finalNames.push(name);
+    }
+  }
+  return finalNames;
+}
+
+// 綁定開始按鈕事件
+document.getElementById('startBtn').addEventListener('click', async () => {
+  const timeRange = document.getElementById('timeRange').value;
+  let maxResults = parseInt(document.getElementById('maxResults').value) || 0;
+  const delay = parseInt(document.getElementById('delaySeconds').value) || 0;
+  if (maxResults > 300) maxResults = 300;
+  // 重置進度和錯誤訊息
+  document.getElementById('errorLog').textContent = '';
+  document.getElementById('progressBar').value = 0;
+  document.getElementById('progressText').textContent = '0.00%';
+  // 準備 Google 新聞 RSS 查詢 URL
+  const siteList = [
+    'ettoday.net','ltn.com.tw','udn.com','tvbs.com.tw','setn.com',
+    'ebc.net.tw','ctinews.com','chinatimes.com','ftvnews.com.tw','yahoo.com'
   ];
-  const perSiteMax = Math.ceil(maxCount / sources.length);
-  let fetchedArticlesCount = 0;
-  let outputLines = [];
-  // 顯示進度條
-  progressContainer.style.display = 'block';
-  progressBar.style.width = '0%';
-  progressPercent.textContent = '0.00%';
-  // 工具函式：使用 AllOrigins API 獲取文字（繞過 CORS）
-  async function fetchText(url) {
-    const apiURL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-    const res = await fetch(apiURL);
-    return await res.text();
-  }
-  // 工具函式：將 HTML 字串轉為 DOM
-  function parseHTML(html) {
-    return new DOMParser().parseFromString(html, 'text/html');
-  }
-  // 工具函式：從文字中擷取中文人名
-  function extractNames(text) {
-    const surnameList = [
-      '陳','林','黃','張','李','王','吳','劉','蔡','楊','許','鄭','謝','曾','邱','洪','郭','周','胡','葉',
-      '蘇','何','韓','沈','莊','呂','施','宋','鄧','范','曹','薛','丁','魏','阮','蕭','潘','田','董','杜',
-      '馮','朱','程','侯','夏','石','姚','方','羅','高','馬','張','鍾','簡','銀','紀','白','薛','柳','詹',
-      '歐陽','司馬','上官','夏侯','諸葛','東方','公孫','慕容','司徒'
-    ];
-    const singleSurnamePattern = surnameList.filter(s => s.length === 1).join('|');
-    const doubleSurnamePattern = surnameList.filter(s => s.length === 2).join('|');
-    let regex;
-    if (doubleSurnamePattern) {
-      regex = new RegExp(`((?:${doubleSurnamePattern})[\\u4e00-\\u9fff]{1,2}|(?:${singleSurnamePattern})[\\u4e00-\\u9fff]{1,2})`, 'g');
-    } else {
-      regex = new RegExp(`((?:${singleSurnamePattern})[\\u4e00-\\u9fff]{1,2})`, 'g');
+  let feedUrls = [];
+  if (maxResults <= 100) {
+    // 條目數少於等於100則透過單一複合查詢
+    const query = '(' + siteList.map(s => 'site:' + s).join(' OR ') + ') when:' + timeRange;
+    feedUrls.push('https://news.google.com/rss/search?hl=zh-TW&gl=TW&ceid=TW:zh-Hant&q=' + encodeURIComponent(query));
+  } else {
+    // 條目數較多則逐一以站點為單位查詢（彌補 Google RSS 每次最多100篇的限制）
+    for (let site of siteList) {
+      const query = 'site:' + site + ' when:' + timeRange;
+      feedUrls.push('https://news.google.com/rss/search?hl=zh-TW&gl=TW&ceid=TW:zh-Hant&q=' + encodeURIComponent(query));
     }
-    const names = new Set();
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      names.add(match[1]);
-    }
-    return Array.from(names);
   }
-  // 逐一處理各新聞來源
-  for (let source of sources) {
-    if (outputLines.length >= maxCount) break;
-    const siteName = source.name;
-    try {
-      let articleLinks = [];
-      if (source.type === 'rss') {
-        // 取得 RSS Feed
-        const xmlText = await fetchText(source.url);
-        const xmlDoc = new DOMParser().parseFromString(xmlText, 'text/xml');
-        const items = Array.from(xmlDoc.getElementsByTagName('item'));
-        for (let item of items) {
-          if (articleLinks.length >= perSiteMax) break;
-          const linkNode = item.getElementsByTagName('link')[0];
-          const dateNode = item.getElementsByTagName('pubDate')[0];
-          if (linkNode) {
-            const link = linkNode.textContent.trim();
-            let include = true;
-            if (dateNode) {
-              const pubTime = new Date(dateNode.textContent);
-              if (pubTime < startDate || pubTime > endDate) {
-                include = false;
-              }
-            }
-            if (include) articleLinks.push(link);
-          }
-        }
-      } else if (source.type === 'list') {
-        // ETtoday 每日新聞列表
-        let dateCursor = new Date(endDate);
-        while (dateCursor >= startDate && articleLinks.length < perSiteMax) {
-          const year = dateCursor.getFullYear();
-          const month = dateCursor.getMonth() + 1;
-          const day = dateCursor.getDate();
-          const listURL = `https://www.ettoday.net/news/news-list-${year}-${month}-${day}-0.htm`;
-          try {
-            const html = await fetchText(listURL);
-            const doc = parseHTML(html);
-            const items = doc.querySelectorAll('div.part_list_2 > h3');
-            items.forEach(item => {
-              if (articleLinks.length < perSiteMax) {
-                const timeSpan = item.querySelector('span.date');
-                const aTag = item.querySelector('a');
-                if (aTag) {
-                  let articleTime = null;
-                  if (timeSpan) {
-                    const timeText = timeSpan.textContent;
-                    if (timeText.includes('年')) {
-                      // 例如 "2025年07月11日 11:50"
-                      articleTime = new Date(timeText.replace(/年|月/g, '-').replace('日', ''));
-                    } else if (timeText.includes('/')) {
-                      // 例如 "07/11 11:50"
-                      articleTime = new Date(`${year}/${timeText}`);
-                    } else {
-                      articleTime = new Date(`${year}-${month}-${day} ${timeText}`);
-                    }
-                  }
-                  if (!articleTime || (articleTime >= startDate && articleTime <= endDate)) {
-                    articleLinks.push(aTag.href);
-                  }
-                }
-              }
-            });
-          } catch (e) {
-            console.warn('ETtoday 列表抓取失敗:', listURL);
-          }
-          dateCursor.setDate(dateCursor.getDate() - 1);
-        }
-      } else if (source.type === 'html') {
-        // 一般 HTML 頁面
-        const html = await fetchText(source.url);
-        const doc = parseHTML(html);
-        const anchors = doc.querySelectorAll('a');
-        anchors.forEach(a => {
-          if (articleLinks.length >= perSiteMax) return;
-          let href = a.getAttribute('href');
-          if (!href) return;
-          // 處理相對網址
-          if (href.startsWith('//')) {
-            href = location.protocol + href;
-          } else if (href.startsWith('/')) {
-            try {
-              const base = new URL(source.url);
-              href = base.origin + href;
-            } catch (err) {}
-          }
-          // 過濾出可能的新聞連結
-          try {
-            const urlObj = new URL(href);
-            if (!urlObj.hostname.includes(new URL(source.url).hostname)) return;
-          } catch { return; }
-          if (href.match(/\d{4}\/\d/) || href.match(/\d{6,}/) || href.includes('/news') || href.includes('article')) {
-            if (!/\.(jpg|png|gif|pdf)$/.test(href)) {
-              articleLinks.push(href);
-            }
+  try {
+    // 抓取所有RSS結果並彙總新聞項目
+    const allItems = [];
+    for (let feedUrl of feedUrls) {
+      const rssText = await fetchText(feedUrl);
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(rssText, 'text/xml');
+      const items = xmlDoc.querySelectorAll('item');
+      items.forEach(item => {
+        const link = item.querySelector('link').textContent;
+        const sourceElem = item.querySelector('source');
+        const sourceName = sourceElem ? sourceElem.textContent.trim() : '';
+        allItems.push({ link: link, source: sourceName });
+      });
+    }
+    // 過濾重覆的新聞連結（避免同一新聞多次出現）
+    const uniqueItems = [];
+    const seenLinks = new Set();
+    for (let it of allItems) {
+      if (seenLinks.has(it.link)) continue;
+      seenLinks.add(it.link);
+      uniqueItems.push(it);
+      if (uniqueItems.length >= maxResults) break;
+    }
+    const totalItems = uniqueItems.length;
+    if (totalItems === 0) {
+      alert('找不到任何新聞，請嘗試不同的時間區間或條件。');
+      return;
+    }
+    // 逐篇抓取新聞內容並提取人名
+    let resultLines = [];
+    let completed = 0;
+    for (let item of uniqueItems) {
+      try {
+        const articleHtml = await fetchText(item.link);
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(articleHtml, 'text/html');
+        // 移除腳本和樣式以免干擾
+        doc.querySelectorAll('script, style').forEach(el => el.remove());
+        const textContent = doc.body ? doc.body.innerText || '' : '';
+        const names = extractNamesFromText(textContent);
+        const uniqueNames = new Set(names);
+        uniqueNames.forEach(name => {
+          if (name.length > 1) {
+            const sourceLabel = item.source || '';
+            // 每行輸出格式：姓名 (來源媒體)
+            resultLines.push(name + (sourceLabel ? ' (' + sourceLabel + ')' : ''));
           }
         });
+      } catch (err) {
+        document.getElementById('errorLog').textContent += '新聞擷取失敗: ' + item.link + ' (' + err.message + ')\\n';
       }
-      // 依取得的連結數量進行文章內容擷取
-      for (let link of articleLinks) {
-        if (outputLines.length >= maxCount) break;
-        try {
-          const articleHtml = await fetchText(link);
-          // 延遲請求以避免觸發風控
-          if (delayMs > 0) {
-            await new Promise(res => setTimeout(res, delayMs));
-          }
-          fetchedArticlesCount++;
-          // 更新進度條百分比
-          const estimatedTotal = Math.min(maxCount, perSiteMax * sources.length);
-          const percent = Math.min((fetchedArticlesCount / estimatedTotal) * 100, 100);
-          progressBar.style.width = percent.toFixed(2) + '%';
-          progressPercent.textContent = percent.toFixed(2) + '%';
-          // 解析文章內容
-          const articleDoc = parseHTML(articleHtml);
-          articleDoc.querySelectorAll('script, style').forEach(n => n.remove());
-          const titleText = articleDoc.querySelector('title') ? articleDoc.querySelector('title').innerText : '';
-          let contentText = '';
-          const paragraphs = articleDoc.querySelectorAll('p');
-          if (paragraphs.length > 0) {
-            paragraphs.forEach(p => {
-              if (p.innerText) contentText += p.innerText + '\n';
-            });
-          } else {
-            contentText = articleDoc.body ? articleDoc.body.innerText : '';
-          }
-          const fullText = titleText + '\n' + contentText;
-          const names = extractNames(fullText);
-          for (let name of names) {
-            outputLines.push(`${name}（${siteName}）`);
-            if (outputLines.length >= maxCount) break;
-          }
-        } catch (err) {
-          console.warn(`擷取 ${siteName} 文章失敗:`, link, err);
-        }
+      completed++;
+      const percent = (completed / totalItems) * 100;
+      document.getElementById('progressBar').value = percent;
+      document.getElementById('progressText').textContent = percent.toFixed(2) + '%';
+      if (delay > 0) {
+        // 延遲指定秒數再進行下一次請求
+        await new Promise(res => setTimeout(res, delay * 1000));
       }
-    } catch (e) {
-      console.warn(`來源 ${siteName} 處理時出錯:`, e);
     }
+    if (resultLines.length === 0) {
+      alert('已完成爬取，但未提取到任何姓名。');
+    } else {
+      // 建立檔案 Blob 並觸發下載
+      const blob = new Blob([resultLines.join('\\n')], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const downloadLink = document.getElementById('downloadLink');
+      downloadLink.href = url;
+      downloadLink.download = 'names.txt';
+      downloadLink.textContent = '下載 names.txt';
+      downloadLink.style.display = 'inline';
+      downloadLink.click();  // 自動觸發下載
+    }
+  } catch (err) {
+    document.getElementById('errorLog').textContent = '發生錯誤：' + err.message;
   }
-  // 移除重複的人名 (相同新聞來源下)
-  outputLines = Array.from(new Set(outputLines));
-  outputDiv.textContent = outputLines.join('\n');
-  // 自動下載純文字檔
-  const blob = new Blob([outputLines.join('\n')], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const downloadLink = document.createElement('a');
-  downloadLink.href = url;
-  downloadLink.download = 'names.txt';
-  document.body.appendChild(downloadLink);
-  downloadLink.click();
-  document.body.removeChild(downloadLink);
-  // 重置按鈕和進度顯示
-  startBtn.disabled = false;
-  progressBar.style.width = '100%';
-  progressPercent.textContent = '100.00%';
-}
-document.getElementById('startBtn').addEventListener('click', startCrawl);
+});
 </script>
 </body>
 </html>
