@@ -1,11 +1,169 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-TW">
 <head>
   <meta charset="UTF-8" />
-  <title>新聞人名輸出工具</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>新聞姓名萃取工具</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 40px auto; }
+    h1 { font-size: 1.5em; }
+    label { margin-right: 8px; }
+    select, input { margin: 0 12px 0 4px; }
+    button { margin-left: 12px; }
+    #status { margin-top: 20px; color: #555; }
+  </style>
 </head>
 <body>
-  <h1>新聞人名 TXT 匯出工具</h1>
-  <button onclick="alert('這裡會未來放爬蟲與下載功能')">開始擷取新聞並匯出</button>
+  <h1>新聞姓名萃取工具</h1>
+  <p>從 Google 新聞搜尋台灣主流媒體，萃取人物真實姓名列表</p>
+  
+  <!-- 選項表單 -->
+  <div>
+    <label for="timeRange">新聞時間範圍:</label>
+    <select id="timeRange">
+      <option value="1d">最近一天</option>
+      <option value="3d">最近三天</option>
+      <option value="7d" selected>最近一週</option>
+      <option value="1m">最近一個月</option>
+    </select>
+    
+    <label for="maxResults">最大新聞數量:</label>
+    <input id="maxResults" type="number" value="100" min="1" max="1000" />
+    
+    <button id="startBtn">開始爬取</button>
+  </div>
+  
+  <!-- 狀態輸出 -->
+  <div id="status"></div>
+  
+<script>
+const mediaSites = [
+  { domain: "ettoday.net", name: "ETtoday" },
+  { domain: "ltn.com.tw", name: "自由時報" },
+  { domain: "udn.com", name: "聯合報" },
+  { domain: "setn.com", name: "三立新聞" },
+  { domain: "tvbs.com", name: "TVBS新聞" },
+  { domain: "yahoo.com", name: "Yahoo新聞" }
+];
+// 常見中文姓氏列表（部分示例）
+const surnames = ["陳","林","張","李","王","黃","吳","劉","蔡","楊","許","鄭","謝","郭","洪",
+                  "邱","曾","廖","賴","徐","周","葉","蘇","莊","呂","施","孔","曹","嚴","馮",
+                  "高","潘","朱","簡","鍾","彭","游","杜","戴","范","宋","洪","胡","朱","歐陽","司馬","諸葛"];
+                  
+document.getElementById('startBtn').addEventListener('click', () => {
+  const timeRange = document.getElementById('timeRange').value;
+  const maxResults = parseInt(document.getElementById('maxResults').value, 10) || 100;
+  document.getElementById('status').textContent = "正在搜尋新聞...";
+  
+  // 組合 Google News RSS 查詢URL
+  let siteQuery = mediaSites.map(site => `site:${site.domain}`).join(" OR ");
+  let query = `${siteQuery} when:${timeRange}`;
+  // 注意：需對查詢參數整體做URL編碼
+  let rssUrl = `https://news.google.com/rss/search?hl=zh-TW&gl=TW&ceid=TW:zh-Hant&q=${encodeURIComponent(query)}`;
+  
+  fetch(rssUrl).then(response => response.text()).then(async rssText => {
+    // 解析RSS XML
+    let parser = new DOMParser();
+    let xml = parser.parseFromString(rssText, "text/xml");
+    let items = Array.from(xml.getElementsByTagName('item'));
+    console.log(`RSS returned ${items.length} items.`);
+    let results = [];
+    
+    for (let i = 0; i < items.length && results.length < maxResults; i++) {
+      let item = items[i];
+      let title = item.getElementsByTagName('title')[0].textContent;
+      let link = item.getElementsByTagName('link')[0].textContent;
+      // 從標題提取來源，例如 "XXX - ETtoday" -> "ETtoday"
+      let sourceName = title.split(' - ').pop().trim();
+      // 如有需要，對來源名稱做標準化映射
+      let mapped = mediaSites.find(site => sourceName.includes(site.name));
+      if (mapped) sourceName = mapped.name;
+      
+      try {
+        // 使用 AllOrigins 抓取新聞內容
+        let fetchUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(link);
+        let htmlText = await fetch(fetchUrl).then(res => res.text());
+        // 解析HTML並移除不需要的元素
+        let doc = parser.parseFromString(htmlText, "text/html");
+        let removeTags = ['script','style','noscript','iframe','header','footer','nav'];
+        removeTags.forEach(tag => {
+          doc.querySelectorAll(tag).forEach(node => node.remove());
+        });
+        let bodyText = doc.body ? doc.body.innerText || "" : "";
+        
+        // 簡單的人名提取：找出2-4字的可能姓名
+        let nameCandidates = bodyText.match(/[\u4e00-\u9fff]{2,4}/g) || [];
+        // 過濾人名候選
+        nameCandidates.forEach(name => {
+          if (results.length >= maxResults) return;
+          if (name.length < 2 || name.length > 4) return; // 非2-4字跳過
+          if (!surnames.some(s => name.startsWith(s))) return; // 姓氏不匹配
+          if (name.includes("記者") || name.includes("報導")) return; // 排除職稱或其他詞
+          // 排除可能的外國譯名（姓氏不常見已部分涵蓋），可加更多規則
+          // 排除純暱稱(在正文中暱稱通常不會單獨出現無括號，這裡略)
+          
+          // 尋找註記：括號內容或前綴職稱
+          let note = "";
+          // 在正文中找 "姓名（…）" 的情況
+          let regex = new RegExp(name + "（([^）]+)）");
+          let match = bodyText.match(regex);
+          if (match) {
+            note = match[1];
+            // 過濾不需要的註記
+            if (note.includes("綽號") || note.includes("化名") || note.match(/\d+歲/)) {
+              note = ""; // 若括號內是綽號/化名/年齡，則不要這註記
+            }
+          }
+          // 若沒有括號註記，嘗試找前面的稱謂，如「XXXX姓名」
+          if (!note) {
+            let idx = bodyText.indexOf(name);
+            if (idx > 0) {
+              // 向前找最多6個字的稱呼
+              let prefix = bodyText.substring(Math.max(0, idx-6), idx);
+              // 去掉可能的標點
+              prefix = prefix.replace(/^[^\u4e00-\u9fff]*/, "");
+              if (prefix && prefix.match(/[\u4e00-\u9fff]+/)) {
+                note = prefix;
+              }
+            }
+          }
+          // 如果仍沒有，根據情況可以給預設類型（此處略，可擴充）
+          
+          // 如果取得了有效姓名且未曾加入過，則加入結果
+          if (name && !results.find(r => r.name === name && r.source === sourceName)) {
+            results.push({ name: name, note: note || "", source: sourceName });
+          }
+        });
+      } catch (err) {
+        console.error("Error fetching/parsing article:", err);
+      }
+    } // end for items
+    
+    // 構造輸出文字
+    let lines = results.map(r => {
+      let notePart = r.note ? r.note : "人物";  // 若沒有註記，用「人物」或留空
+      return `${r.name}（${notePart}／${r.source}）`;
+    });
+    let outputText = lines.join("\n");
+    
+    // 觸發下載
+    let blob = new Blob([outputText], { type: 'text/plain' });
+    let blobUrl = URL.createObjectURL(blob);
+    let a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `names_${Date.now()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    document.getElementById('status').textContent = 
+      "完成！共擷取 " + lines.length + " 筆姓名，檔案已下載。";
+  })
+  .catch(err => {
+    console.error("RSS fetch error", err);
+    document.getElementById('status').textContent = "發生錯誤，請稍後重試。";
+  });
+});
+</script>
 </body>
 </html>
