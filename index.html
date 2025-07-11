@@ -1,227 +1,44 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8">
-<title>Google 新聞人名擷取工具</title>
-<style>
-  body { font-family: Arial, sans-serif; }
-  #progressBar { width: 100%; background: #eee; border: 1px solid #ccc; height: 20px; position: relative; margin: 10px 0; }
-  #progressFill { background: #4caf50; width: 0%; height: 100%; }
-  #progressText { position: absolute; left: 50%; top: 0; transform: translateX(-50%); color: #000; font-weight: bold; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>新聞人名擷取工具</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-<h1>Google 新聞人名擷取工具</h1>
-<p>（透過 Google 新聞搜尋台灣主流媒體，擷取新聞標題與內文中的人物真實姓名列表）</p>
-<div>
-  <label>新聞時間範圍：
-    <select id="timeRange">
-      <option value="1d">近一日</option>
-      <option value="7d">近一週</option>
-      <option value="30d">近一月</option>
-    </select>
-  </label>
-  <label style="margin-left: 10px;">最大新聞數量：
-    <input type="number" id="maxCount" value="100" min="1" style="width: 60px;">
-  </label>
-  <button id="startBtn">開始爬取</button>
-  <button id="cancelBtn" disabled>取消爬取</button>
-</div>
-<div id="status" style="margin: 5px 0; color: #555;"></div>
-<div id="progressBar">
-  <div id="progressFill"></div>
-  <div id="progressText">0.00%</div>
-</div>
-<div>已擷取人名數量：<span id="nameCount">0</span></div>
-
-<script>
-(() => {
-  const timeRangeSelect = document.getElementById('timeRange');
-  const maxCountInput = document.getElementById('maxCount');
-  const startBtn = document.getElementById('startBtn');
-  const cancelBtn = document.getElementById('cancelBtn');
-  const statusDiv = document.getElementById('status');
-  const progressFill = document.getElementById('progressFill');
-  const progressText = document.getElementById('progressText');
-  const nameCountSpan = document.getElementById('nameCount');
-  
-  // Predefined surnames and double surnames for name extraction
-  const surnameSet = new Set([
-    "李","王","張","劉","陳","楊","黃","趙","周","吳","徐","孫","胡","朱","高","林","何","郭","馬","羅",
-    "梁","宋","鄭","謝","韓","唐","馮","董","蕭","蔡","鄧","葉","許","曹","袁","程","阮","丁","夏","盧",
-    "蘇","廖","姚","沈","曾","江","潘","尹","田","邱","傅","鐘","姜","崔","譚","邵","毛","史","章","伍",
-    "詹","范","金","陶","余","卓","連","白","柳","薛","習","游","賴","柯","侯","安","朴","文"
-  ]);
-  const doubleSurnameSet = new Set([
-    "歐陽","司馬","上官","夏侯","諸葛","皇甫","南宮","東方","西門","司徒","慕容","公孫","司空","尉遲",
-    "長孫","軒轅","令狐","拓跋","張簡","范姜"
-  ]);
-  
-  let cancelRequested = false;
-  let currentController = null;
-  
-  startBtn.addEventListener('click', startCrawl);
-  cancelBtn.addEventListener('click', () => {
-    cancelRequested = true;
-    statusDiv.textContent = "已取消爬取。";
-    if (currentController) {
-      currentController.abort();
-    }
-    cancelBtn.disabled = true;
-    startBtn.disabled = false;
-  });
-  
-  async function startCrawl() {
-    cancelRequested = false;
-    nameCountSpan.textContent = "0";
-    progressFill.style.width = "0%";
-    progressText.textContent = "0.00%";
-    statusDiv.textContent = "正在爬取新聞，請稍候...";
-    startBtn.disabled = true;
-    cancelBtn.disabled = false;
-    
-    // Build Google News RSS search URL with selected time range and site filters
-    const range = timeRangeSelect.value;
-    const maxCount = parseInt(maxCountInput.value, 10) || 1;
-    const sites = [
-      "udn.com","ltn.com.tw","chinatimes.com","ettoday.net",
-      "cna.com.tw","storm.mg","setn.com","nownews.com"
-    ];
-    const query = sites.map(s => `site:${s}`).join(" OR ") + ` when:${range}`;
-    const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant`;
-    
-    try {
-      // Fetch RSS feed via AllOrigins proxy to avoid CORS issues
-      currentController = new AbortController();
-      const rssResponse = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(rssUrl)}`, { signal: currentController.signal });
-      if (!rssResponse.ok) {
-        throw new Error(`RSS fetch failed with status ${rssResponse.status}`);
-      }
-      const rssText = await rssResponse.text();
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(rssText, "text/xml");
-      const items = Array.from(xmlDoc.querySelectorAll("item"));
-      if (items.length === 0) {
-        throw new Error("No news items found");
-      }
-      const itemsToProcess = items.slice(0, maxCount);
-      const totalItems = itemsToProcess.length;
-      let processedCount = 0;
-      const nameList = [];
+  <div class="container">
+    <h1>台灣新聞人名擷取工具</h1>
+    <!-- 控制面板區 -->
+    <div class="controls">
+      <label for="timeRange">時間區間：</label>
+      <select id="timeRange">
+        <option value="1">今日</option>
+        <option value="3">最近三天</option>
+        <option value="7">最近一週</option>
+        <option value="30">最近一個月</option>
+      </select>
       
-      for (const item of itemsToProcess) {
-        if (cancelRequested) break;
-        const link = item.querySelector("link")?.textContent || "";
-        const sourceName = item.querySelector("source")?.textContent || "未知來源";
-        if (!link) continue;
-        try {
-          currentController = new AbortController();
-          const articleRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(link)}`, { signal: currentController.signal });
-          if (!articleRes.ok) {
-            continue; // skip if article fetch failed
-          }
-          const articleHTML = await articleRes.text();
-          const doc = new DOMParser().parseFromString(articleHTML, "text/html");
-          const textContent = doc.body ? doc.body.innerText : "";
-          const names = extractNames(textContent);
-          for (const name of names) {
-            nameList.push(`${name}（${sourceName}）`);
-          }
-          nameCountSpan.textContent = nameList.length;
-        } catch (err) {
-          if (err.name === "AbortError") {
-            break; // aborted
-          }
-          continue;
-        } finally {
-          processedCount++;
-          const percent = (processedCount / totalItems) * 100;
-          progressFill.style.width = percent.toFixed(2) + "%";
-          progressText.textContent = percent.toFixed(2) + "%";
-        }
-      }
+      <label for="maxNews">最大新聞數量：</label>
+      <input type="number" id="maxNews" value="100" min="1" max="1000" />
       
-      cancelBtn.disabled = true;
-      startBtn.disabled = false;
-      if (cancelRequested) {
-        statusDiv.textContent = "已取消爬取。";
-      } else {
-        statusDiv.textContent = "爬取完成！正在下載檔案...";
-        // Trigger download of the name list as a text file
-        const blob = new Blob([nameList.join("\n")], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = "names.txt";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        statusDiv.textContent = "爬取完成！";
-      }
-    } catch (error) {
-      startBtn.disabled = false;
-      cancelBtn.disabled = true;
-      if (cancelRequested) {
-        statusDiv.textContent = "已取消爬取。";
-      } else {
-        console.error(error);
-        statusDiv.textContent = "發生錯誤：無法取得新聞資料。";
-      }
-    }
-  }
+      <button id="startBtn">開始爬取</button>
+      <button id="cancelBtn" disabled>取消爬取</button>
+    </div>
+    
+    <!-- 進度條區 -->
+    <div class="progress-area">
+      <progress id="progressBar" value="0" max="100"></progress>
+      <span id="progressText">0.00%</span>
+    </div>
+    
+    <!-- 狀態訊息區 -->
+    <div id="statusMessage" class="status"></div>
+    
+    <!-- 下載按鈕（預設隱藏） -->
+    <button id="downloadBtn" style="display:none;">下載 TXT</button>
+  </div>
   
-  // Function to extract Chinese person names from text
-  function extractNames(text) {
-    const results = new Set();
-    const invalidChars = /[的了在是有和與讓使將把為昨]/;
-    // Split text by any non-Chinese characters
-    const segments = text.split(/[^\u4e00-\u9fff]+/);
-    for (const seg of segments) {
-      if (seg.length < 2) continue;
-      for (let i = 0; i < seg.length; i++) {
-        // Check double-character surnames
-        if (i + 1 < seg.length) {
-          const twoChar = seg.substring(i, i+2);
-          if (doubleSurnameSet.has(twoChar)) {
-            // double surname found
-            if (i + 2 < seg.length) {
-              if (i + 3 < seg.length) {
-                const name4 = seg.substring(i, i+4);
-                if (!invalidChars.test(name4)) results.add(name4);
-              }
-              const name3 = seg.substring(i, i+3);
-              if (!invalidChars.test(name3)) results.add(name3);
-            }
-            continue; // skip single surname check for this i
-          }
-        }
-        // Check single-character surname
-        const ch = seg[i];
-        if (surnameSet.has(ch)) {
-          if (i + 1 < seg.length) {
-            const name2 = seg.substring(i, i+2);
-            if (!invalidChars.test(name2)) results.add(name2);
-            if (i + 2 < seg.length) {
-              const name3 = seg.substring(i, i+3);
-              if (!invalidChars.test(name3)) results.add(name3);
-            }
-          }
-        }
-      }
-    }
-    // Remove any name that is a prefix of a longer name
-    const finalResults = new Set(results);
-    for (const name of results) {
-      for (const other of results) {
-        if (other.length > name.length && other.startsWith(name)) {
-          finalResults.delete(name);
-        }
-      }
-    }
-    return Array.from(finalResults);
-  }
-})();
-</script>
+  <script src="script.js"></script>
 </body>
 </html>
