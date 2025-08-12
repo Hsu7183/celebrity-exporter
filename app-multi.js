@@ -4,6 +4,7 @@ const CFG = { feeBothSides:true, taxOnExitOnly:true, slipMode:'total' };
 const ENTRY = ['新買','新賣'];
 const EXIT_L = ['平賣','強制平倉'];
 const EXIT_S = ['平買','強制平倉'];
+const ACTS = new Set([...ENTRY, ...EXIT_L, ...EXIT_S]); // ← 修正：補上動作集合
 
 /* ===== UI ===== */
 const filesInput = document.getElementById('filesInput');
@@ -48,7 +49,6 @@ filesInput.addEventListener('change', async (e) => {
     }
   }
 
-  // 先畫表頭再渲染
   buildHeader();
   sortRows(currentSortKey, currentSortDir);
   renderTable();
@@ -82,7 +82,7 @@ function analyse(raw) {
   const rows = (raw || '').split(/\r?\n/).map(s=>s.replace(/\uFEFF/g,'').trim()).filter(Boolean);
   let params = null, startIdx = 0;
 
-  // 第一行若是大多數數字 => 當參數（不計算）
+  // 第一行若多數為數字 => 視為參數（不納入計算）
   const firstNums = rows[0]?.split(/\s+/).map(v=>parseFloat(v)).filter(n=>Number.isFinite(n)) || [];
   if (firstNums.length >= 3) { params = firstNums; startIdx = 1; }
 
@@ -96,9 +96,9 @@ function analyse(raw) {
 
     const act = parts[parts.length-1];
     const price = parseFloat(parts[1]);
-    let tsRaw = parts[0].replace(/\D/g,'');
+    let tsRaw = parts[0].replace(/\D/g,''); // 留數字
     if (!ACTS.has(act) || !Number.isFinite(price) || tsRaw.length<12) continue;
-    tsRaw = tsRaw.slice(0,12);
+    tsRaw = tsRaw.slice(0,12); // YYYYMMDDHHMM
 
     if (ENTRY.includes(act)) { q.push({ side: act==='新買'?'L':'S', pIn: price, tsIn: tsRaw }); continue; }
 
@@ -131,8 +131,8 @@ function buildKPI(tr, seq){
   const sum = a => a.reduce((x,y)=>x+y,0);
   const pct = x => (x*100).toFixed(1)+'%';
   const byDay = list => { const m={}; for(const t of list){ const d=t.tsOut.slice(0,8); m[d]=(m[d]||0)+t.gain; } return Object.values(m); };
-  const up  = s => { let mn=s[0], v=0; for(const x of s){ mn=Math.min(mn,x); v=Math.max(v,x-mn);} return v; };
-  const dn  = s => { let pk=s[0], v=0; for(const x of s){ pk=Math.max(pk,x); v=Math.min(v,x-pk);} return v; };
+  const up  = s => { if(!s?.length) return 0; let mn=s[0], v=0; for(const x of s){ mn=Math.min(mn,x); v=Math.max(v,x-mn);} return v; };
+  const dn  = s => { if(!s?.length) return 0; let pk=s[0], v=0; for(const x of s){ pk=Math.max(pk,x); v=Math.min(v,x-pk);} return v; };
 
   const longs  = tr.filter(t=>t.pos.side==='L');
   const shorts = tr.filter(t=>t.pos.side==='S');
@@ -171,13 +171,13 @@ function buildHeader(){
         currentSortDir = (currentSortDir === 'asc' ? 'desc' : 'asc');
       } else {
         currentSortKey = key;
-        currentSortDir = 'desc'; // KPI 預設用降序較直覺
+        currentSortDir = 'desc'; // KPI 預設降序
       }
       thead.querySelectorAll('th.sortable').forEach(h=>h.classList.remove('asc','desc'));
       th.classList.add(currentSortDir);
       sortRows(currentSortKey, currentSortDir);
       renderTable();
-      updateFirstDisplay(); // 第一筆同步到上方
+      updateFirstDisplay();
     });
   });
 }
@@ -247,7 +247,7 @@ function updateFirstDisplay(){
   // 曲線
   drawChart(first.tsSeq, first.equitySeq.tot, first.equitySeq.lon, first.equitySeq.sho, first.equitySeq.sli);
 
-  // 交易表（同單檔板結構）
+  // 交易表
   renderFirstTradeTable(first.trades);
 }
 
@@ -277,7 +277,6 @@ function drawChart(tsArr, T, L, S, P){
     if (chart) chart.destroy();
     if (!Array.isArray(tsArr) || tsArr.length===0) return;
 
-    // 把時間序列映成簡單的等距 X 軸即可（避免依賴外掛）
     const X = tsArr.map((_,i)=>i);
     const mkLine=(d,col)=>({data:d,stepped:true,borderColor:col,borderWidth:2,pointRadius:0});
 
