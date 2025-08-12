@@ -7,29 +7,10 @@ const ACTS = new Set([...ENTRY, ...EXIT_L, ...EXIT_S]);
 
 const cvs = document.getElementById('equityChart');
 const tbl = document.getElementById('tbl');
+const paramsBox = document.getElementById('params');
 
-/* ---------- KPI 容器 & 樣式 ---------- */
+/* ---------- KPI 容器（舊樣式沿用） ---------- */
 let statBox = document.getElementById('stats');
-if (!statBox) {
-  statBox = document.createElement('div');
-  statBox.id = 'stats';
-  statBox.style.maxWidth = '1200px';
-  statBox.style.margin   = '1rem auto';
-  statBox.style.fontSize = '.84rem';
-  statBox.style.lineHeight = '1.4';
-  document.querySelector('header').after(statBox);
-
-  const style = document.createElement('style');
-  style.textContent = `
-    #stats section {margin-bottom:.9rem}
-    #stats h3 {margin:.3rem 0;font-size:.95rem;border-bottom:1px solid #e0e0e0;padding-bottom:.2rem}
-    .stat-grid {display:flex;flex-wrap:wrap;gap:.5rem .8rem}
-    .stat-item {min-width:130px;white-space:nowrap}
-    .stat-key {color:#555}
-    .stat-val {font-weight:600}
-  `;
-  document.head.appendChild(style);
-}
 
 /* ---------- 讀取剪貼簿 / 檔案 ---------- */
 document.getElementById('btn-clip').onclick = async e => {
@@ -53,20 +34,23 @@ document.getElementById('fileInput').onchange = e => {
 
 /* ---------- 主分析 ---------- */
 function analyse(raw) {
-  const rows = raw
+  // 逐行清理
+  const rows = String(raw || '')
     .split(/\r?\n/)
     .map(s => s.replace(/\uFEFF/g,'').trim())
     .filter(Boolean);
 
   if (!rows.length) { alert('空檔案'); return; }
 
-  // 若第一行為純參數列就略過
-  const isParamLine = line => {
-    const toks = line.split(/\s+/);
-    if (toks.length < 3) return false;
-    return toks.every(t => /^-?\d+(\.\d+)?$/.test(t));
-  };
-  let startIdx = isParamLine(rows[0]) ? 1 : 0;
+  // 試圖辨識第一行參數（不納入計算）
+  const parsedParam = tryParseParams(rows[0]);
+  let startIdx = 0;
+  if (parsedParam) {
+    renderParams(parsedParam, rows[0]);
+    startIdx = 1; // 後續計算從第 2 行開始
+  } else {
+    paramsBox.innerHTML = ''; // 沒有參數就清空
+  }
 
   const q = [], tr = [];
   const tsArr = [], tot = [], lon = [], sho = [], sli = [];
@@ -80,10 +64,12 @@ function analyse(raw) {
     const act = parts[parts.length - 1].replace(/\s/g,'');
     if (!ACTS.has(act)) continue;
 
-    // 時間取第一欄、價格取第二欄
+    // 時間第一欄；允許含小數點，去掉非數字
     let tsRaw = parts[0].replace(/\D/g,'');
     if (tsRaw.length < 12) continue;
     tsRaw = tsRaw.slice(0, 12); // YYYYMMDDHHMM
+
+    // 價格第二欄（可帶小數）
     const price = parseFloat(parts[1]);
     if (!Number.isFinite(price)) continue;
 
@@ -115,13 +101,37 @@ function analyse(raw) {
 
   if (!tr.length) { alert('沒有成功配對的交易'); return; }
 
-  renderTable(tr);
+  // 2) KPI
   renderStats(tr, { tot, lon, sho, sli });
-  // 統一用 shared.js 的 drawCurve（含月條紋、最大/最小點標註）
+
+  // 3) 損益曲線（共用）
   drawCurve(cvs, tsArr, tot, lon, sho, sli);
+
+  // 4) 交易表
+  renderTable(tr);
 }
 
-/* ---------- KPI flex-grid ---------- */
+/* ---------- 參數解析/呈現 ---------- */
+function tryParseParams(line){
+  // 條件：至少 3 個數字欄，且大部分都是數值
+  const toks = line.trim().split(/\s+/);
+  const nums = toks.map(t => parseFloat(t)).filter(n => Number.isFinite(n));
+  if (nums.length >= 3 && nums.length >= Math.floor(toks.length * 0.8)) return nums;
+  return null;
+}
+
+function renderParams(nums, rawLine){
+  const items = nums.map((v,i)=>`<div class="param-item"><span class="param-key">P${i+1}</span>：<span class="param-val">${fmt(v)}</span></div>`).join('');
+  paramsBox.innerHTML = `
+    <section>
+      <h3>參數（不納入損益計算）</h3>
+      <div class="param-grid">${items}</div>
+      <div class="param-raw">原始字串：${escapeHTML(rawLine)}</div>
+    </section>
+  `;
+}
+
+/* ---------- KPI（沿用舊樣式） ---------- */
 function renderStats(tr, seq) {
   const sum = arr => arr.reduce((a, b) => a + b, 0);
   const pct = x => (x * 100).toFixed(1) + '%';
@@ -198,3 +208,4 @@ const fmt   = n => typeof n==='number' ? n.toLocaleString('zh-TW',{maximumFracti
 const fmtTs = s => `${s.slice(0,4)}/${s.slice(4,6)}/${s.slice(6,8)} ${s.slice(8,10)}:${s.slice(10,12)}`;
 function flash(el){el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),600);}
 function sumUpTo(arr, idx, key){return arr.slice(0, idx + 1).reduce((a,b)=>a + b[key], 0);}
+function escapeHTML(s=''){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
