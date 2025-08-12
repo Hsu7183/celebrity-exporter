@@ -5,13 +5,28 @@
   <title>三劍客台指期策略分析（批量版）</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    .top-flex{max-width:100%;display:flex;gap:12px;flex-wrap:wrap;padding:0 1rem;box-sizing:border-box}
-    .top-left{flex:1 1 60%;min-width:400px}
-    .top-right{flex:1 1 40%;min-width:300px;background:#fff;border:1px solid var(--border);border-radius:6px;padding:8px;overflow:auto}
-    #paramLineMulti{font-size:.9rem;margin-bottom:6px;white-space:nowrap;overflow-x:auto}
-    #kpiSimpleMulti{font-size:.85rem;line-height:1.6;margin-bottom:6px}
+    .top-flex{
+      max-width:100%;display:flex;gap:12px;flex-wrap:wrap;
+      padding:0 1rem;box-sizing:border-box
+    }
+    .top-left{flex:1 1 60%;min-width:420px}
+    .top-left canvas{
+      width:100%!important;height:360px!important;background:#fff;
+      border:1px solid var(--border);border-radius:6px;padding:8px;box-sizing:border-box
+    }
+    .top-right{
+      flex:1 1 40%;min-width:320px;background:#fff;border:1px solid var(--border);
+      border-radius:6px;padding:8px;overflow:auto
+    }
+    #paramLineMulti{
+      font-size:.9rem;margin-bottom:6px;white-space:nowrap;overflow-x:auto
+    }
+    #kpiSimpleMulti{font-size:.85rem;line-height:1.6;margin-bottom:8px}
     #tblFirstTrade{width:100%;border-collapse:collapse;font-size:.8rem}
     #tblFirstTrade th,#tblFirstTrade td{border:1px solid #ccc;padding:2px 4px;text-align:center}
+    th.sortable{cursor:pointer;position:relative;user-select:none}
+    th.sortable.asc::after{content:"↑";position:absolute;right:.35rem;top:50%;transform:translateY(-50%);color:#999}
+    th.sortable.desc::after{content:"↓";position:absolute;right:.35rem;top:50%;transform:translateY(-50%);color:#999}
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
@@ -26,7 +41,7 @@
     </div>
   </header>
 
-  <!-- 上半部左右分欄 -->
+  <!-- 上半部：左曲線、右參數＋KPI＋交易表 -->
   <div class="top-flex">
     <div class="top-left">
       <canvas id="equityChart"></canvas>
@@ -34,7 +49,7 @@
     <div class="top-right">
       <div id="paramLineMulti"></div>
       <div id="kpiSimpleMulti"></div>
-      <h4>交易紀錄</h4>
+      <h4 style="margin:.4rem 0">交易紀錄</h4>
       <table id="tblFirstTrade" hidden>
         <thead>
           <tr>
@@ -56,6 +71,6 @@
     </table>
   </div>
 
-  <script type="module" src="app-multi.js?v=2025-08-12a"></script>
+  <script type="module" src="app-multi.js?v=2025-08-12b"></script>
 </body>
 </html>
