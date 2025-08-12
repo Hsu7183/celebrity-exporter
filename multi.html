@@ -3,33 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <title>三劍客台指期策略分析（批量版）</title>
-
   <link rel="stylesheet" href="style.css" />
-
   <style>
-    body.wide header, body.wide .toolbar, body.wide .sub,
-    body.wide .table-wrap, body.wide #chartWrap { max-width:100%; margin:1rem auto; padding:0 1rem; }
-    .toolbar{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
-    .hint{color:#666;font-size:.86rem}
-    .stats{color:#555;font-size:.86rem}
-
-    th.sortable{cursor:pointer; position:relative; user-select:none;}
-    th.sortable::after{content:"⇅"; font-size:.8rem; color:#999; position:absolute; right:.35rem; top:50%; transform:translateY(-50%);}
-    th.sortable.asc::after{content:"↑";}
-    th.sortable.desc::after{content:"↓";}
-
-    table.sticky th:first-child, table.sticky td:first-child { position: sticky; left: 0; background: #fff; z-index: 1; }
-    table.sticky thead th:first-child { z-index: 2; background:#fafafa; }
-    .nowrap{white-space:nowrap}
-
-    #chartWrap{margin-top:.6rem}
-    #chartBox{
-      width:100%; height:360px; background:#fff; border:1px solid var(--border);
-      border-radius:.5rem; padding:.6rem; box-sizing:border-box;
-    }
+    .top-flex{max-width:100%;display:flex;gap:12px;flex-wrap:wrap;padding:0 1rem;box-sizing:border-box}
+    .top-left{flex:1 1 60%;min-width:400px}
+    .top-right{flex:1 1 40%;min-width:300px;background:#fff;border:1px solid var(--border);border-radius:6px;padding:8px;overflow:auto}
+    #paramLineMulti{font-size:.9rem;margin-bottom:6px;white-space:nowrap;overflow-x:auto}
+    #kpiSimpleMulti{font-size:.85rem;line-height:1.6;margin-bottom:6px}
+    #tblFirstTrade{width:100%;border-collapse:collapse;font-size:.8rem}
+    #tblFirstTrade th,#tblFirstTrade td{border:1px solid #ccc;padding:2px 4px;text-align:center}
   </style>
-
-  <!-- 批量版僅用 Chart.js，避免外掛缺失造成中止 -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body class="wide">
@@ -43,16 +26,26 @@
     </div>
   </header>
 
-  <div id="chartWrap">
-    <h2 class="sub" style="margin-top:0.2rem">第一筆收益曲線</h2>
-    <div id="chartBox">
+  <!-- 上半部左右分欄 -->
+  <div class="top-flex">
+    <div class="top-left">
       <canvas id="equityChart"></canvas>
     </div>
-  </div>
-
-  <div class="toolbar">
-    <div class="hint">一次可選最多約 1,000 筆 TXT；每列：檔名 + <b>全部 / 多單 / 空單</b> 全部 KPI。點欄位可排序。</div>
-    <div class="stats" id="loadStat"></div>
+    <div class="top-right">
+      <div id="paramLineMulti"></div>
+      <div id="kpiSimpleMulti"></div>
+      <h4>交易紀錄</h4>
+      <table id="tblFirstTrade" hidden>
+        <thead>
+          <tr>
+            <th>筆數</th><th>時間</th><th>價格</th><th>類型</th><th>點數</th>
+            <th>手續費</th><th>期交稅</th><th>獲利</th><th>累積獲利</th>
+            <th>滑價獲利</th><th>累積滑價獲利</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
   </div>
 
   <h2 class="sub">彙總結果</h2>
@@ -63,6 +56,6 @@
     </table>
   </div>
 
-  <script type="module" src="app-multi.js?v=2025-08-12"></script>
+  <script type="module" src="app-multi.js?v=2025-08-12a"></script>
 </body>
 </html>
