@@ -1,4 +1,3 @@
-/* ===== 參數 ===== */
 const MULT = 200, FEE = 45, TAX = 0.00004, SLIP = 1.5;
 const ENTRY = ['新買', '新賣'];
 const EXIT_L = ['平賣', '強制平倉'];
@@ -7,12 +6,9 @@ const ACTS = new Set([...ENTRY, ...EXIT_L, ...EXIT_S]);
 
 const cvs = document.getElementById('equityChart');
 const tbl = document.getElementById('tbl');
-const paramsBox = document.getElementById('params');
+const paramLineBox = document.getElementById('paramLine');
+const kpiSimpleBox = document.getElementById('kpiSimple');
 
-/* ---------- KPI 容器（舊樣式沿用） ---------- */
-let statBox = document.getElementById('stats');
-
-/* ---------- 讀取剪貼簿 / 檔案 ---------- */
 document.getElementById('btn-clip').onclick = async e => {
   try { analyse(await navigator.clipboard.readText()); flash(e.target); }
   catch (err) { alert(err.message); }
@@ -32,9 +28,7 @@ document.getElementById('fileInput').onchange = e => {
   })();
 };
 
-/* ---------- 主分析 ---------- */
 function analyse(raw) {
-  // 逐行清理
   const rows = String(raw || '')
     .split(/\r?\n/)
     .map(s => s.replace(/\uFEFF/g,'').trim())
@@ -42,14 +36,13 @@ function analyse(raw) {
 
   if (!rows.length) { alert('空檔案'); return; }
 
-  // 試圖辨識第一行參數（不納入計算）
   const parsedParam = tryParseParams(rows[0]);
   let startIdx = 0;
   if (parsedParam) {
-    renderParams(parsedParam, rows[0]);
-    startIdx = 1; // 後續計算從第 2 行開始
+    renderParamLine(parsedParam);
+    startIdx = 1;
   } else {
-    paramsBox.innerHTML = ''; // 沒有參數就清空
+    paramLineBox.innerHTML = '';
   }
 
   const q = [], tr = [];
@@ -59,17 +52,12 @@ function analyse(raw) {
   for (let i = startIdx; i < rows.length; i++) {
     const parts = rows[i].split(/\s+/).filter(Boolean);
     if (parts.length < 3) continue;
-
-    // 動作取最後一欄，容錯中間有其他欄位
     const act = parts[parts.length - 1].replace(/\s/g,'');
     if (!ACTS.has(act)) continue;
 
-    // 時間第一欄；允許含小數點，去掉非數字
     let tsRaw = parts[0].replace(/\D/g,'');
     if (tsRaw.length < 12) continue;
-    tsRaw = tsRaw.slice(0, 12); // YYYYMMDDHHMM
-
-    // 價格第二欄（可帶小數）
+    tsRaw = tsRaw.slice(0, 12);
     const price = parseFloat(parts[1]);
     if (!Number.isFinite(price)) continue;
 
@@ -101,38 +89,23 @@ function analyse(raw) {
 
   if (!tr.length) { alert('沒有成功配對的交易'); return; }
 
-  // 2) KPI
-  renderStats(tr, { tot, lon, sho, sli });
-
-  // 3) 損益曲線（共用）
+  renderKpiSimple(tr, { tot, lon, sho, sli });
   drawCurve(cvs, tsArr, tot, lon, sho, sli);
-
-  // 4) 交易表
   renderTable(tr);
 }
 
-/* ---------- 參數解析/呈現 ---------- */
 function tryParseParams(line){
-  // 條件：至少 3 個數字欄，且大部分都是數值
   const toks = line.trim().split(/\s+/);
   const nums = toks.map(t => parseFloat(t)).filter(n => Number.isFinite(n));
   if (nums.length >= 3 && nums.length >= Math.floor(toks.length * 0.8)) return nums;
   return null;
 }
 
-function renderParams(nums, rawLine){
-  const items = nums.map((v,i)=>`<div class="param-item"><span class="param-key">P${i+1}</span>：<span class="param-val">${fmt(v)}</span></div>`).join('');
-  paramsBox.innerHTML = `
-    <section>
-      <h3>參數（不納入損益計算）</h3>
-      <div class="param-grid">${items}</div>
-      <div class="param-raw">原始字串：${escapeHTML(rawLine)}</div>
-    </section>
-  `;
+function renderParamLine(nums){
+  paramLineBox.textContent = nums.join('｜');
 }
 
-/* ---------- KPI（沿用舊樣式） ---------- */
-function renderStats(tr, seq) {
+function renderKpiSimple(tr, seq){
   const sum = arr => arr.reduce((a, b) => a + b, 0);
   const pct = x => (x * 100).toFixed(1) + '%';
   const byDay = list => {
@@ -150,18 +123,15 @@ function renderStats(tr, seq) {
     const win  = list.filter(t => t.gain > 0);
     const loss = list.filter(t => t.gain < 0);
     return {
-      '交易數'        : list.length,
-      '勝率'          : pct(win.length  / (list.length || 1)),
-      '敗率'          : pct(loss.length / (list.length || 1)),
-      '正點數'        : sum(win .map(t => t.pts)),
-      '負點數'        : sum(loss.map(t => t.pts)),
-      '總點數'        : sum(list.map(t => t.pts)),
-      '累積獲利'      : sum(list.map(t => t.gain)),
-      '滑價累計獲利'  : sum(list.map(t => t.gainSlip)),
-      '單日最大獲利'  : Math.max(...byDay(list)),
-      '單日最大虧損'  : Math.min(...byDay(list)),
-      '區間最大獲利'  : drawUp(cumSeq),
-      '區間最大回撤'  : drawDn(cumSeq)
+      '交易數': list.length,
+      '勝率': pct(win.length  / (list.length || 1)),
+      '敗率': pct(loss.length / (list.length || 1)),
+      '單日最大獲利': Math.max(...byDay(list)),
+      '單日最大虧損': Math.min(...byDay(list)),
+      '區間最大獲利': drawUp(cumSeq),
+      '區間最大回撤': drawDn(cumSeq),
+      '累積獲利': sum(list.map(t => t.gain)),
+      '滑價累計獲利': sum(list.map(t => t.gainSlip))
     };
   };
 
@@ -173,16 +143,13 @@ function renderStats(tr, seq) {
 
   let html = '';
   Object.entries(stats).forEach(([title, obj]) => {
-    html += `<section><h3>${title}</h3><div class="stat-grid">`;
-    Object.entries(obj).forEach(([k, v]) => {
-      html += `<div class="stat-item"><span class="stat-key">${k}</span>：<span class="stat-val">${fmt(v)}</span></div>`;
-    });
-    html += '</div></section>';
+    html += `<div><b>${title}</b>：` +
+      Object.entries(obj).map(([k,v]) => `${k} ${fmt(v)}`).join('｜') +
+      `</div>`;
   });
-  statBox.innerHTML = html;
+  kpiSimpleBox.innerHTML = html;
 }
 
-/* ---------- 交易紀錄表 ---------- */
 function renderTable(list) {
   const body = tbl.querySelector('tbody'); body.innerHTML = '';
   list.forEach((t, i) => {
@@ -203,9 +170,7 @@ function renderTable(list) {
   tbl.hidden = false;
 }
 
-/* ---------- 工具 ---------- */
 const fmt   = n => typeof n==='number' ? n.toLocaleString('zh-TW',{maximumFractionDigits:2}) : n;
 const fmtTs = s => `${s.slice(0,4)}/${s.slice(4,6)}/${s.slice(6,8)} ${s.slice(8,10)}:${s.slice(10,12)}`;
 function flash(el){el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),600);}
 function sumUpTo(arr, idx, key){return arr.slice(0, idx + 1).reduce((a,b)=>a + b[key], 0);}
-function escapeHTML(s=''){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
