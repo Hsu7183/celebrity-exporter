@@ -1,4 +1,4 @@
-/* ===== 共用：解析 + 計算 + 畫圖 ===== */
+/* ===== 共用：解析 + 計算 + 畫圖（ES Module） ===== */
 const MULT = 200, FEE = 45, TAX = 0.00004, SLIP = 1.5;
 const ENTRY = ['新買','新賣'], EXIT_L = ['平賣','強制平倉'], EXIT_S = ['平買','強制平倉'];
 
@@ -10,7 +10,7 @@ function parseTxt(raw){
   const rows = raw.trim().split(/\r?\n/);
   if (!rows.length) return null;
 
-  // 參數行（第一行 15 個數）
+  // 參數行（第一行 15 個數，顯示整數）
   const pLine = rows[0].trim();
   const parts = pLine.split(/\s+/).filter(Boolean);
   let params = [];
@@ -80,20 +80,15 @@ function buildKPI(tr, seq){
       totPts: sum(list.map(t=>t.pts)),
       dayMax: Math.max(...byDay(list), 0),
       dayMin: Math.min(...byDay(list), 0),
-      runUp:  drawUp(cum),  // 區間最大獲利
-      drawDn: drawDn(cum)   // 區間最大回撤
+      runUp:  drawUp(cum),
+      drawDn: drawDn(cum)
     };
   };
 
-  return {
-    all: mk(tr, seq.tot),
-    L  : mk(longs, seq.lon),
-    S  : mk(shorts, seq.sho)
-  };
+  return { all: mk(tr, seq.tot), L: mk(longs, seq.lon), S: mk(shorts, seq.sho) };
 }
 
 function kpiToMiniText(k){
-  // 簡約摘要（照你的圖三格式）
   const row = (t, o) => (
     `<div class="row">
       <b>${t}</b>：交易數 <b>${o.n}</b>｜勝率 <b>${fmtPct(o.winr)}</b>｜敗率 ${fmtPct(o.lossr)}
@@ -109,7 +104,6 @@ let chart;
 function drawChart(cvs, tsArr, T, L, S, P){
   if(chart) chart.destroy();
 
-  // 26個月區間 x 軸
   const ym2Date = ym => new Date(+ym.slice(0,4), +ym.slice(4,6)-1);
   const addM = (d,n)=>new Date(d.getFullYear(), d.getMonth()+n);
   const start = addM(ym2Date(tsArr[0]?.slice(0,6) ?? '202301'), -1);
@@ -139,10 +133,10 @@ function drawChart(cvs, tsArr, T, L, S, P){
     data:{
       labels:X,
       datasets:[
-        mkLine(T,'#111827'),  // 黑：總
-        mkLine(L,'#d32f2f'),  // 紅：多
-        mkLine(S,'#2e7d32'),  // 綠：空
-        mkLine(P,'#f59e0b'),  // 黃：滑價累計獲利（依你之前規格）
+        mkLine(T,'#111827'),  // 總(黑)
+        mkLine(L,'#d32f2f'),  // 多(紅)
+        mkLine(S,'#2e7d32'),  // 空(綠)
+        mkLine(P,'#f59e0b'),  // 滑價累計(黃)
       ]
     },
     options:{
@@ -168,7 +162,6 @@ async function readAsText(file){
 }
 
 function trimName(name){
-  // 顯示用簡名：去副檔名 + 取最後一段
   return name.replace(/\.[^.]+$/,'').split(/[\\/]/).pop();
 }
 
