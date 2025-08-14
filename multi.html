@@ -3,83 +3,64 @@
 <head>
   <meta charset="utf-8" />
   <title>三劍客台指期策略分析（批量版）</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="style.css" />
-  <!-- Chart.js & DataLabels -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 </head>
 <body>
-  <header class="page-header">
+  <header class="container">
     <h1>三劍客台指期策略分析（批量版）</h1>
-    <div class="btns">
-      <label class="btn primary">
-        選擇多個檔案
-        <input id="files" type="file" accept=".txt,.TF" multiple hidden />
-      </label>
-      <button id="btn-clear" class="btn">清空結果</button>
+    <div style="display:flex;gap:8px">
+      <label class="btn">選擇多個檔案 <input id="multiInput" type="file" accept=".txt,.TF" hidden multiple></label>
+      <button id="clearBtn" class="btn secondary">清空結果</button>
     </div>
   </header>
 
-  <section class="top-split">
-    <div class="left-plot card">
-      <h2 class="card-title">第一筆收益曲線</h2>
-      <div class="chart-wrap tight">
-        <canvas id="equityChart"></canvas>
+  <div class="container row row-2">
+    <!-- 左：圖 -->
+    <div class="card chart-wrap"><canvas id="mChart"></canvas></div>
+
+    <!-- 右：參數＋KPI＋交易明細 -->
+    <div class="card" style="display:flex;flex-direction:column;gap:10px;max-height:520px;overflow:auto;">
+      <div id="mParam" class="compact-line"></div>
+      <div id="mKPI" class="compact-line"></div>
+
+      <div class="table-scroller">
+        <table id="mTrades">
+          <thead><tr id="mHead"></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
+  </div>
 
-    <aside class="right-panel card">
-      <div class="right-panel__head">
-        <div id="paramChips" class="chips"></div>
-      </div>
-      <div class="right-panel__body">
-        <div id="kpiBox" class="kpi-mini"></div>
-
-        <h3 class="sub">交易明細</h3>
-        <div class="table-scroll">
-          <table id="tbl">
-            <thead>
-            <tr>
-              <th>筆數</th><th>進場時間</th><th>進場價</th><th>出場時間</th><th>出場價</th>
-              <th>方向</th><th>點數</th><th>手續費</th><th>期交稅</th>
-              <th>獲利</th><th>累積獲利</th><th>滑價獲利</th><th>累積滑價獲利</th>
-            </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
-    </aside>
-  </section>
-
-  <section class="card">
-    <h2 class="card-title">彙總結果（每行一檔，橫向可捲動）</h2>
-    <div class="strip-scroll">
-      <table class="compact-grid" id="summary">
+  <div class="container">
+    <h2>彙總結果（每行一檔，橫向可捲動）</h2>
+    <div class="summary">
+      <table id="sumTbl">
         <thead>
-        <tr>
-          <th style="min-width: 280px;">檔名 / 時間</th>
-          <th style="min-width: 380px;">參數</th>
-          <th>交易數</th>
-          <th>勝率</th>
-          <th>累積獲利</th>
-          <th>Profit&nbsp;Factor</th>
-          <th>單日最大獲利</th>
-          <th>區間最大回撤</th>
-          <th>多單-勝率</th>
-          <th>多單-累積獲利</th>
-          <th>空單-勝率</th>
-          <th>空單-累積獲利</th>
-        </tr>
+          <tr>
+            <th data-k="name">時間</th>
+            <th data-k="param">參數</th>
+            <th data-k="trades">交易數</th>
+            <th data-k="win">勝率</th>
+            <th data-k="gain">累積獲利</th>
+            <th data-k="pf">Profit Factor</th>
+            <th data-k="best">單日最大獲利</th>
+            <th data-k="dd">區間最大回撤</th>
+            <th data-k="lwin">多-勝率</th>
+            <th data-k="lgain">多-累積獲利</th>
+            <th data-k="swin">空-勝率</th>
+            <th data-k="sgain">空-累積獲利</th>
+          </tr>
         </thead>
-        <tbody id="summaryBody"></tbody>
+        <tbody></tbody>
       </table>
     </div>
-    <p class="hint">TXT 第一行若為參數將自動辨識；載入後，第一筆會同步顯示於上方圖表 / KPI / 交易明細。</p>
-  </section>
+    <div class="muted" style="margin-top:6px">
+      TXT 第一行若為參數會自動辨識；點擊表頭可排序；點擊某行會同步更新上方圖表/KPI/交易明細。
+    </div>
+  </div>
 
-  <!-- 只載入一支 ES Module，由裡面 import 共用函式 -->
-  <script type="module" src="app-multi.js"></script>
+  <script src="multi.js"></script>
 </body>
 </html>
