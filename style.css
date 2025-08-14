@@ -1,72 +1,67 @@
 :root{
-  --bg:#f3f4f6; --card:#fff; --border:#e5e7eb;
-  --primary:#2563eb; --primary-dark:#1e40af;
-  --muted:#6b7280; --text:#111827; --sub:#374151;
+  --bg:#f5f6f8; --card:#fff; --muted:#737373; --border:#e5e7eb;
+  --primary:#2563eb; --primary-600:#1e40af;
 }
 
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--text);
-  font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+html,body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#111}
 
-.page-header{
-  display:flex;align-items:center;gap:1rem;
-  max-width:1440px;margin:14px auto 4px;padding:0 14px;
-}
-.page-header h1{flex:1 1 auto;margin:0;font-size:22px;font-weight:800}
-.btns{display:flex;gap:.5rem}
+header,.container{max-width:1200px;margin:0 auto;padding:14px}
+
+h1{margin:6px 0 10px;font-size:24px;letter-spacing:.02em}
+h2{margin:12px 0 8px;font-size:18px}
+small, .muted{color:var(--muted)}
+
 .btn{
-  display:inline-flex;align-items:center;gap:.4rem;
-  padding:.55rem .9rem;border:1px solid var(--border);
-  border-radius:.45rem;background:#fff;cursor:pointer
+  appearance:none;border:0;border-radius:10px;padding:8px 14px;
+  background:var(--primary);color:#fff;font-weight:600;cursor:pointer
 }
-.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
-.btn.primary:hover{background:var(--primary-dark)}
+.btn.secondary{background:#eef2ff;color:#1e1e1e}
+.btn:hover{background:var(--primary-600)}
+
+.row{display:grid;gap:14px}
+.row-2{grid-template-columns:1.2fr .8fr}
 
 .card{
-  background:var(--card);border:1px solid var(--border);
-  border-radius:.6rem; padding:12px; box-shadow:0 1px 0 rgba(0,0,0,.02);
-}
-.card-title{margin:4px 4px 10px;font-size:16px;color:var(--sub)}
-
-.top-split{
-  max-width:1440px;margin:0 auto 14px; padding:0 14px;
-  display:grid; grid-template-columns: minmax(420px, 1fr) 500px; gap:12px;
-}
-.left-plot .chart-wrap.tight{padding:0}
-.chart-wrap{width:100%}
-.chart-wrap canvas{
-  width:100%!important; height:560px!important;
-  background:#fff; border-radius:.4rem;
+  background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px
 }
 
-.right-panel{display:flex;flex-direction:column;min-height:640px}
-.right-panel__head{padding:4px}
-.chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{
-  background:#f1f5f9;border:1px solid var(--border);color:#0f172a;
-  padding:.28rem .55rem;border-radius:999px;font-size:12px
+.chart-wrap{height:520px}
+.chart-wrap canvas{width:100%!important;height:100%!important}
+
+.badge{
+  display:inline-block;background:#f3f4f6;border:1px solid var(--border);
+  border-radius:999px;padding:4px 8px;margin:2px 4px;font-size:12px
 }
 
-.right-panel__body{
-  display:flex;flex-direction:column; gap:12px;
-  min-height:0; /* for children flex scroll */
+/* 右上：KPI 摘要 */
+.kpi{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;font-size:13px
 }
-.kpi-mini{font-size:13px;line-height:1.6;color:#111}
-.kpi-mini .row{margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--border)}
-.kpi-mini b{font-weight:700}
-.kpi-mini .tt{color:#6b7280;margin-right:6px}
+.kpi .blk{border:1px dashed var(--border);border-radius:8px;padding:8px;line-height:1.35}
+.kpi .title{font-weight:700;margin-bottom:4px}
+.kpi .item{white-space:nowrap}
 
-.table-scroll{border:1px solid var(--border);border-radius:.5rem;overflow:auto;max-height:360px}
-table{width:100%;border-collapse:collapse}
-th,td{padding:.45rem .5rem;border-bottom:1px solid var(--border);text-align:center;font-size:13px}
-thead th{background:#f8fafc;font-weight:700}
-tbody tr:nth-child(even){background:#fafafa}
+/* 右上：交易明細表（單行、不換行、可捲動） */
+.table-scroller{border:1px solid var(--border);border-radius:8px;overflow:auto;max-height:280px;background:#fff}
+table{border-collapse:collapse;width:max-content;min-width:100%}
+th,td{border-bottom:1px solid var(--border);padding:6px 8px;text-align:center;white-space:nowrap;font-size:13px}
+thead th{background:#fafafa;font-weight:700;position:sticky;top:0;z-index:1}
 
-.strip-scroll{overflow:auto}
-.compact-grid{white-space:nowrap}
-.compact-grid td,.compact-grid th{padding:.45rem .6rem;font-size:13px}
-.compact-grid tbody tr:hover{background:#f1f5ff}
+/* 下方：彙總結果（每行一檔，橫向可拖動） */
+.summary{border:1px solid var(--border);border-radius:12px;overflow:auto;background:#fff}
+.summary table{min-width:1100px}
+.summary tr.is-active{background:#eef2ff}
 
-.hint{color:#6b7280;font-size:12px;margin:8px 2px 0}
+/* 參數與 KPI 小行 */
+.compact-line{border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px;line-height:1.4;background:#fff}
 
-.sub{margin:0;color:var(--sub);font-size:14px}
+/* 單檔：參數列 */
+#paramLine{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+#paramLine .badge{background:#111;color:#fff;border-color:#111}
+
+/* 小工具 */
+.flash{animation:flash .5s}
+@keyframes flash{0%{filter:brightness(1)}50%{filter:brightness(1.7)}100%{filter:brightness(1)}}
+
+.hidden{display:none}
