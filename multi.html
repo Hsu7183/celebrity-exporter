@@ -3,83 +3,85 @@
 <head>
   <meta charset="utf-8" />
   <title>三劍客台指期策略分析（批量版）</title>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="style.css" />
-
   <!-- Chart.js & DataLabels -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 </head>
 <body>
-  <header class="hdr">
+  <header class="page-header">
     <h1>三劍客台指期策略分析（批量版）</h1>
-
-    <div class="btn-group">
-      <label class="btn primary">選擇多個檔案
+    <div class="btns">
+      <label class="btn primary">
+        選擇多個檔案
         <input id="files" type="file" accept=".txt,.TF" multiple hidden />
       </label>
       <button id="btn-clear" class="btn">清空結果</button>
     </div>
   </header>
 
-  <!-- 兩欄：左圖 / 右側（參數 + KPI/明細並排） -->
-  <section class="grid-2col">
-    <div class="card">
-      <h2 class="sec-title">第一筆收益曲線</h2>
-      <div class="chart-wrap">
+  <!-- 上半部：左圖右資訊 -->
+  <section class="top-split">
+    <div class="left-plot card">
+      <h2 class="card-title">第一筆收益曲線</h2>
+      <div class="chart-wrap tight">
         <canvas id="equityChart"></canvas>
       </div>
     </div>
 
-    <div class="card">
-      <h2 class="sec-title">第一筆參數 / KPI / 交易明細</h2>
+    <aside class="right-panel card">
+      <div class="right-panel__head">
+        <div id="paramChips" class="chips"></div>
+      </div>
+      <div class="right-panel__body">
+        <div id="kpiBox" class="kpi-mini"></div>
 
-      <!-- 參數列 -->
-      <div class="pillbar" id="pills"></div>
-
-      <!-- KPI 與交易明細：左右並排 -->
-      <div class="split-2col">
-        <div class="pane scroll" id="kpiPane"></div>
-        <div class="pane scroll">
-          <table class="table slim" id="tbl">
+        <h3 class="sub">交易明細</h3>
+        <div class="table-scroll">
+          <table id="tbl">
             <thead>
             <tr>
-              <th>筆數</th><th>進場時間</th><th>進場價</th>
-              <th>出場時間</th><th>出場價</th><th>方向</th>
-              <th>點數</th><th>手續費</th><th>期交稅</th>
-              <th>獲利</th><th>累積獲利</th>
-              <th>滑價獲利</th><th>累積滑價獲利</th>
+              <th>筆數</th><th>進場時間</th><th>進場價</th><th>出場時間</th><th>出場價</th>
+              <th>方向</th><th>點數</th><th>手續費</th><th>期交稅</th>
+              <th>獲利</th><th>累積獲利</th><th>滑價獲利</th><th>累積滑價獲利</th>
             </tr>
             </thead>
             <tbody></tbody>
           </table>
         </div>
       </div>
-    </div>
+    </aside>
   </section>
 
-  <!-- 下方：彙總結果（精簡分行列式） -->
+  <!-- 下半部：一檔一行的精簡彙總 -->
   <section class="card">
-    <h2 class="sec-title">彙總結果</h2>
-    <div class="hint">TXT 第一行若為參數會自動辨識；載入後，點選下方列可以切換第一筆圖表與明細。</div>
-
-    <div class="summary-toolbar">
-      <div class="summary-cols">
-        <span class="col col-name">檔名 / 時間</span>
-        <span class="col col-params">參數</span>
-        <span class="col">交易數</span>
-        <span class="col">勝率</span>
-        <span class="col">累積獲利</span>
-        <span class="col">Profit Factor</span>
-        <span class="col">單日最大獲利</span>
-        <span class="col">區間最大回撤</span>
-      </div>
+    <h2 class="card-title">彙總結果（每行一檔，橫向可捲動）</h2>
+    <div class="strip-scroll">
+      <table class="compact-grid" id="summary">
+        <thead>
+        <tr>
+          <th style="min-width: 280px;">檔名 / 時間</th>
+          <th style="min-width: 380px;">參數</th>
+          <th>交易數</th>
+          <th>勝率</th>
+          <th>累積獲利</th>
+          <th>Profit&nbsp;Factor</th>
+          <th>單日最大獲利</th>
+          <th>區間最大回撤</th>
+          <th>多單-勝率</th>
+          <th>多單-累積獲利</th>
+          <th>空單-勝率</th>
+          <th>空單-累積獲利</th>
+        </tr>
+        </thead>
+        <tbody id="summaryBody"></tbody>
+      </table>
     </div>
-
-    <div id="summaryList" class="summary-list"></div>
+    <p class="hint">TXT 第一行若為參數將自動辨識；載入後，第一筆將同步顯示於上方圖表/KPI/交易明細。</p>
   </section>
 
-  <!-- 不使用模組，避免部分瀏覽器/部署對 ES Modules 的限制 -->
+  <script src="shared.js"></script>
   <script src="app-multi.js"></script>
 </body>
 </html>
