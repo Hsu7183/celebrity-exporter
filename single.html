@@ -5,65 +5,39 @@
   <title>三劍客台指期策略分析（單檔）</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
-  <script src="shared.js"></script>
-  <style>
-    #paramLine{
-      max-width:1200px;
-      margin:10px auto;
-      padding:6px 10px;
-      background:#fff;
-      border:1px solid var(--border);
-      border-radius:6px;
-      font-size:.9rem;
-      white-space:nowrap;
-      overflow-x:auto;
-    }
-    #kpiSimple{
-      max-width:1200px;
-      margin:10px auto;
-      background:#fff;
-      border:1px solid var(--border);
-      border-radius:6px;
-      font-size:.85rem;
-      line-height:1.6;
-      padding:8px 10px;
-    }
-  </style>
 </head>
 <body>
-  <header>
+  <header class="container">
     <h1>三劍客台指期策略分析（單檔）</h1>
-    <div class="btn-group">
-      <button id="btn-clip" class="btn primary">貼上內容</button>
-      <label class="btn primary">選擇檔案
-        <input type="file" id="fileInput" accept=".txt,.TF" hidden />
-      </label>
+    <div style="display:flex;gap:8px">
+      <button id="btn-clip" class="btn">貼上內容</button>
+      <label class="btn secondary">選擇檔案 <input id="fileInput" type="file" accept=".txt,.TF" hidden></label>
     </div>
+
+    <div id="paramLine"></div>
+    <div id="kpiLine" class="compact-line"></div>
   </header>
 
-  <!-- 1) 參數 -->
-  <div id="paramLine"></div>
+  <div class="container row">
+    <div class="card chart-wrap"><canvas id="equity"></canvas></div>
+  </div>
 
-  <!-- 2) KPI 簡略 -->
-  <div id="kpiSimple"></div>
+  <div class="container">
+    <h2>交易明細</h2>
+    <div class="table-scroller">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>筆數</th><th>進場時間</th><th>進場價</th><th>出場時間</th><th>出場價</th>
+            <th>方向</th><th>點數</th><th>手續費</th><th>期交稅</th><th>獲利</th>
+            <th>累積獲利</th><th>滑價獲利</th><th>累積滑價獲利</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
 
-  <!-- 3) 損益曲線 -->
-  <div class="chart-wrap"><canvas id="equityChart"></canvas></div>
-
-  <!-- 4) 交易表 -->
-  <h2 class="sub">交易紀錄</h2>
-  <table id="tbl" hidden>
-    <thead>
-      <tr>
-        <th>筆數</th><th>時間</th><th>價格</th><th>類型</th><th>點數</th>
-        <th>手續費</th><th>期交稅</th><th>獲利</th><th>累積獲利</th>
-        <th>滑價獲利</th><th>累積滑價獲利</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <script src="single.js?v=2025-08-12c"></script>
+  <script src="single.js"></script>
 </body>
 </html>
