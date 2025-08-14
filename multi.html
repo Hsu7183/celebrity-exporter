@@ -39,9 +39,7 @@
 
       <!-- KPI 與交易明細：左右並排 -->
       <div class="split-2col">
-        <div class="pane scroll" id="kpiPane">
-          <!-- KPI 會塞進來（全部/多單/空單 三塊） -->
-        </div>
+        <div class="pane scroll" id="kpiPane"></div>
         <div class="pane scroll">
           <table class="table slim" id="tbl">
             <thead>
@@ -63,7 +61,7 @@
   <!-- 下方：彙總結果（精簡分行列式） -->
   <section class="card">
     <h2 class="sec-title">彙總結果</h2>
-    <div class="hint">TXT 第一行若為參數會自動辨識；載入後，點擊下方「欄位名稱」可排序，排序完成後會切換第一筆曲線。</div>
+    <div class="hint">TXT 第一行若為參數會自動辨識；載入後，點選下方列可以切換第一筆圖表與明細。</div>
 
     <div class="summary-toolbar">
       <div class="summary-cols">
@@ -81,7 +79,7 @@
     <div id="summaryList" class="summary-list"></div>
   </section>
 
-  <script type="module" src="shared.js"></script>
-  <script type="module" src="app-multi.js"></script>
+  <!-- 不使用模組，避免部分瀏覽器/部署對 ES Modules 的限制 -->
+  <script src="app-multi.js"></script>
 </body>
 </html>
