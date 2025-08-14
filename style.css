@@ -111,3 +111,66 @@ body.full h1{
 
 /* 讓按鈕更容易點到 */
 .card.hero .btn{ padding:.65rem 1.2rem; font-weight:600; }
+
+:root{
+  --bg:#f3f4f6; --card:#fff; --border:#e0e0e0;
+  --primary:#1976d2; --primary-dark:#155ca8;
+  --muted:#6b7280;
+}
+
+html,body{margin:0;background:var(--bg);
+  font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+
+/* header */
+.hdr{display:flex;align-items:center;gap:1rem;max-width:1280px;margin:1rem auto 0;padding:0 12px}
+.hdr h1{flex:1 1 auto;margin:0;font-size:1.6rem}
+.btn-group{display:flex;gap:.6rem}
+.btn{display:inline-flex;align-items:center;padding:.5rem 1rem;border:1px solid var(--border);background:#fff;border-radius:.35rem;cursor:pointer}
+.btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn.primary:hover{background:var(--primary-dark)}
+
+/* base containers */
+.card{background:var(--card);border:1px solid var(--border);border-radius:.5rem;margin:12px auto;max-width:1280px}
+.sec-title{margin:12px 12px 0;font-size:1.05rem;color:#111}
+.chart-wrap{height:420px;padding:8px 12px 12px}
+
+/* 2-col layout */
+.grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:1280px;margin:0 auto}
+@media (max-width:1100px){.grid-2col{grid-template-columns:1fr}}
+
+/* pill bar (params) */
+.pillbar{display:flex;flex-wrap:wrap;gap:.4rem;padding:8px 12px;border-bottom:1px dashed var(--border)}
+.pill{display:inline-block;padding:.25rem .55rem;border-radius:999px;background:#f1f5ff;border:1px solid #cfe1ff;font-size:.9rem}
+
+/* KPI & trades split */
+.split-2col{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px 12px 12px}
+.pane{min-height:260px;border:1px solid var(--border);border-radius:.4rem}
+.scroll{overflow:auto}
+
+/* KPI block */
+.kpi-block{padding:8px 10px;border-bottom:1px dashed var(--border)}
+.kpi-block:last-child{border-bottom:0}
+.kpi-block h3{margin:.2rem 0 .4rem;font-size:.95rem}
+.kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.2rem .8rem;font-size:.92rem}
+@media (max-width:1200px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* table (trades / slim) */
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{border-bottom:1px solid var(--border);padding:.35rem .4rem;text-align:center;font-size:.86rem;white-space:nowrap}
+.table thead th{background:#fafafa;font-weight:600}
+.table.slim td{font-size:.82rem}
+
+/* hint */
+.hint{color:var(--muted);font-size:.86rem;margin:6px 12px}
+
+/* summary list (下方精簡列) */
+.summary-toolbar{padding:8px 12px;border-top:1px dashed var(--border);border-bottom:1px dashed var(--border)}
+.summary-cols{display:grid;grid-template-columns: 240px 1fr repeat(6,140px);gap:8px;font-size:.9rem;color:#333}
+.summary-list{padding:6px 12px}
+.summary-row{display:grid;grid-template-columns: 240px 1fr repeat(6,140px);gap:8px;padding:8px;border-bottom:1px solid var(--border);cursor:pointer}
+.summary-row:hover{background:#f8fafc}
+.col-name{font-weight:600}
+.col-params{color:#111}
+@media (max-width:1100px){
+  .summary-cols,.summary-row{grid-template-columns: 200px 1fr repeat(6,120px)}
+}
