@@ -21,7 +21,6 @@
     </div>
   </header>
 
-  <!-- 上半部：左圖右資訊 -->
   <section class="top-split">
     <div class="left-plot card">
       <h2 class="card-title">第一筆收益曲線</h2>
@@ -54,7 +53,6 @@
     </aside>
   </section>
 
-  <!-- 下半部：一檔一行的精簡彙總 -->
   <section class="card">
     <h2 class="card-title">彙總結果（每行一檔，橫向可捲動）</h2>
     <div class="strip-scroll">
@@ -78,10 +76,10 @@
         <tbody id="summaryBody"></tbody>
       </table>
     </div>
-    <p class="hint">TXT 第一行若為參數將自動辨識；載入後，第一筆將同步顯示於上方圖表/KPI/交易明細。</p>
+    <p class="hint">TXT 第一行若為參數將自動辨識；載入後，第一筆會同步顯示於上方圖表 / KPI / 交易明細。</p>
   </section>
 
-  <script src="shared.js"></script>
-  <script src="app-multi.js"></script>
+  <!-- 只載入一支 ES Module，由裡面 import 共用函式 -->
+  <script type="module" src="app-multi.js"></script>
 </body>
 </html>
