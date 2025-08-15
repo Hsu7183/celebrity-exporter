@@ -1,193 +1,186 @@
-<!-- 放在 single.html / multi.html 內的 <body> 結尾前載入 -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 <script>
-/* ---- 唯一全域：SHARED ---- */
-(function(){
-  const MULT = 200, FEE = 45, TAX = 0.00004, SLIP = 1.5;
-  const ENTRY = ['新買','新賣'], EXIT_L = ['平賣','強制平倉'], EXIT_S = ['平買','強制平倉'];
+/* global Chart, ChartDataLabels */
+(function () {
+  const CONST = { MULT:200, FEE:45, TAX:0.00004, SLIP:1.5 };
+  const ENTRY = ['新買','新賣'];
+  const EXITL = ['平賣','強制平倉'];
+  const EXITS = ['平買','強制平倉'];
 
-  const fmt = n => typeof n==='number'
-      ? n.toLocaleString('zh-TW',{maximumFractionDigits:2})
-      : n;
+  const fmtInt = n => Number(n).toLocaleString('zh-TW', {maximumFractionDigits:0});
+  const fmt = n => typeof n === 'number'
+      ? n.toLocaleString('zh-TW', {maximumFractionDigits:2}) : n;
   const fmtTs = s => `${s.slice(0,4)}/${s.slice(4,6)}/${s.slice(6,8)} ${s.slice(8,10)}:${s.slice(10,12)}`;
 
-  async function readAsTextAuto(file){
-    const read = (enc) => new Promise((ok,no)=>{
-      const r = new FileReader();
-      r.onload = ()=>ok(r.result); r.onerror = ()=>no(r.error);
-      enc ? r.readAsText(file,enc) : r.readAsText(file);
+  /** 讀檔：big5 失敗時改 utf-8 */
+  function readAsTextAuto(file){
+    return new Promise((resolve,reject)=>{
+      const r1 = new FileReader();
+      r1.onload = () => resolve(r1.result);
+      r1.onerror = () => {
+        const r2 = new FileReader();
+        r2.onload = () => resolve(r2.result);
+        r2.onerror = reject;
+        r2.readAsText(file);
+      };
+      // 先試 big5
+      try{ r1.readAsText(file, 'big5'); }catch{ r1.readAsText(file); }
     });
-    try{ return await read('big5'); }catch{ return await read(); }
   }
 
+  /** 解析 TXT：回 {params, paramsLine, trades[]} */
   function parseRaw(raw){
-    const rows = raw.trim().split(/\r?\n/).filter(Boolean);
-    if(!rows.length) return {params:null, lines:[]};
-    // 第一行可能是參數（都是數字）
-    const tks = rows[0].trim().split(/\s+/);
-    let params=null, start=0;
-    if(tks.every(x=>/^-?\d+(\.\d+)?$/.test(x))){
-      params = tks.map(v=>Math.floor(+v)); // 顯示整數
-      start=1;
+    const rows = raw.trim().split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    let params = [];
+    // 第一行若是純數字組成視為參數列
+    const firstNums = rows[0].split(/\s+/).every(x => !isNaN(Number(x)));
+    if (firstNums) {
+      params = rows[0].split(/\s+/).map(Number);
+      rows.shift();
     }
-    const lines = rows.slice(start).map(r=>{
-      const [ts,price,act] = r.trim().split(/\s+/);
-      return {ts: (ts||'').replace('.000000',''), price:+price, act};
+    const trades = rows.map(l=>{
+      const [ts, price, act] = l.split(/\s+/);
+      return {ts, price:+price, act};
     });
-    return {params, lines};
+    const paramsLine = params.length
+      ? params.map(v => fmtInt(v)).join('｜')
+      : '';
+    return { params, paramsLine, trades };
   }
 
-  function pairTrades(lines){
-    const q=[], tr=[];
-    const tsArr=[], tot=[], lon=[], sho=[], sli=[];
+  /** 配對/績效 */
+  function analyseTrades(trades){
+    const q = [];
+    const rs = [];
+    const Xts=[], tot=[], lon=[], sho=[], slip=[];
     let cum=0, cumL=0, cumS=0, cumSlip=0;
 
-    for(const row of lines){
-      if(!row.act) continue;
-      const {ts, price, act} = row;
-
-      if(ENTRY.includes(act)){
-        q.push({side: act==='新買'?'L':'S', pIn:price, tsIn:ts});
+    for(const t of trades){
+      if(ENTRY.includes(t.act)){
+        q.push({ side: t.act==='新買'?'L':'S', pIn:t.price, tsIn:t.ts });
         continue;
       }
-
-      const qi = q.findIndex(o =>
-        (o.side==='L' && EXIT_L.includes(act)) ||
-        (o.side==='S' && EXIT_S.includes(act)));
-      if(qi===-1) continue;
-
+      const qi = q.findIndex(o => (o.side==='L' && EXITL.includes(t.act)) || (o.side==='S' && EXITS.includes(t.act)));
+      if (qi === -1) continue;
       const pos = q.splice(qi,1)[0];
-      const pts = pos.side==='L' ? price-pos.pIn : pos.pIn-price;
-      const fee = FEE*2, tax = Math.round(price*MULT*TAX);
-      const gain = pts*MULT - fee - tax;
-      const gainSlip = gain - SLIP*MULT;
+
+      const pts = pos.side==='L' ? (t.price - pos.pIn) : (pos.pIn - t.price);
+      const fee = CONST.FEE * 2;
+      const tax = Math.round(t.price * CONST.MULT * CONST.TAX);
+      const gain = pts * CONST.MULT - fee - tax;
+      const gainSlip = gain - CONST.SLIP * CONST.MULT;
 
       cum += gain; cumSlip += gainSlip;
-      pos.side==='L' ? cumL+=gain : cumS+=gain;
+      pos.side==='L' ? (cumL += gain) : (cumS += gain);
 
-      tr.push({pos, tsOut:ts, priceOut:price, pts, gain, gainSlip});
-      tsArr.push(ts); tot.push(cum); lon.push(cumL); sho.push(cumS); sli.push(cumSlip);
+      rs.push({pos, tsOut:t.ts, priceOut:t.price, pts, gain, gainSlip});
+
+      Xts.push(t.ts); tot.push(cum); lon.push(cumL); sho.push(cumS); slip.push(cumSlip);
     }
-    return {tr, seq:{tsArr, tot, lon, sho, sli}};
+    return { list:rs, seq:{ts:Xts, T:tot, L:lon, S:sho, P:slip} };
   }
 
-  function statsFrom(tr, seq){
-    if(!tr.length) return null;
+  /** KPI（回文字 + 給表格的物件） */
+  function buildKPI(list, seq){
     const sum = a => a.reduce((x,y)=>x+y,0);
-    const byDay = list=>{
-      const m={}; list.forEach(t=>{const d=t.tsOut.slice(0,8); m[d]=(m[d]||0)+t.gain;}); return Object.values(m);
+    const byDay = a=>{
+      const m={};
+      a.forEach(t=>{ const d=t.tsOut.slice(0,8); m[d]=(m[d]||0)+t.gain; });
+      return Object.values(m);
     };
-    const drawUp = s=>{let mn=s[0], up=0; s.forEach(v=>{mn=Math.min(mn,v); up=Math.max(up,v-mn);}); return up;};
-    const drawDn = s=>{let pk=s[0], dn=0; s.forEach(v=>{pk=Math.max(pk,v); dn=Math.min(dn,v-pk);}); return dn;};
+    const rise = s=>{ let m=s[0],u=0; s.forEach(v=>{m=Math.min(m,v); u=Math.max(u,v-m);}); return u; };
+    const fall = s=>{ let p=s[0],d=0; s.forEach(v=>{p=Math.max(p,v); d=Math.min(d,v-p);}); return d; };
 
-    const longs = tr.filter(t=>t.pos.side==='L');
-    const shorts= tr.filter(t=>t.pos.side==='S');
-    const make = (list, cumSeq)=>({
-      count: list.length,
-      win:   list.filter(t=>t.gain>0).length,
-      lose:  list.filter(t=>t.gain<0).length,
-      ptsPos: sum(list.filter(t=>t.gain>0).map(t=>t.pts)),
-      ptsNeg: sum(list.filter(t=>t.gain<0).map(t=>t.pts)),
-      ptsTot: sum(list.map(t=>t.pts)),
-      gain:   sum(list.map(t=>t.gain)),
-      gainSlip: sum(list.map(t=>t.gainSlip)),
-      dayMax: Math.max(...byDay(list)),
-      dayMin: Math.min(...byDay(list)),
-      up:  drawUp(cumSeq),
-      dd:  drawDn(cumSeq)
-    });
+    const mk = (filter, seqArr)=>{
+      const li = list.filter(filter);
+      const win = li.filter(t=>t.gain>0);
+      const loss= li.filter(t=>t.gain<0);
+      const pf = (sum(win.map(t=>t.gain)) / Math.abs(sum(loss.map(t=>t.gain||0)))) || 0;
 
-    return {
-      all: make(tr, seq.tot),
-      long: make(longs, seq.lon),
-      short: make(shorts, seq.sho)
+      const txt = `交易數 ${li.length}｜勝率 ${(win.length/(li.length||1)*100).toFixed(1)}%｜敗率 ${(loss.length/(li.length||1)*100).toFixed(1)}%｜單日最大獲利 ${fmtInt(Math.max(...byDay(li),0))}｜單日最大虧損 ${fmtInt(Math.min(...byDay(li),0))}｜區間最大獲利 ${fmtInt(rise(seqArr))}｜區間最大回撤 ${fmtInt(fall(seqArr))}｜累積獲利 ${fmtInt(sum(li.map(t=>t.gain)))}｜滑價累計獲利 ${fmtInt(sum(li.map(t=>t.gainSlip)))}｜ProfitFactor：${pf.toFixed(2)}`;
+      const row = {
+        trades: li.length,
+        winRate: +(win.length/(li.length||1)*100).toFixed(1),
+        profit: sum(li.map(t=>t.gain)),
+        pf:+pf.toFixed(2),
+        dayMax: Math.max(...byDay(li),0),
+        dd: fall(seqArr),
+      };
+      return { txt, row };
     };
+
+    const all  = mk(()=>true, seq.T);
+    const long = mk(t=>t.pos.side==='L', seq.L);
+    const shrt = mk(t=>t.pos.side==='S', seq.S);
+
+    return { all, long, shrt };
   }
 
-  function buildTradesTableRows(list){
-    const rows = [];
-    list.forEach((t,i)=>{
-      rows.push([
-        i+1, fmtTs(t.pos.tsIn), t.pos.pIn, (t.pos.side==='L'?'新買':'新賣'),
-        '—','—','—','—','—','—'
-      ]);
-      rows.push([
-        '', fmtTs(t.tsOut), t.priceOut, (t.pos.side==='L'?'平賣':'平買'),
-        fmt(t.pts), fmt(45*2), fmt(Math.round(t.priceOut*MULT*TAX)),
-        fmt(t.gain), '', fmt(t.gainSlip), ''
-      ]);
-    });
-    return rows;
-  }
-
-  function chartDataFrom(seq){
-    // 取 26 個月的 X 軸（與你原始版一致）
-    const ym2Date = ym => new Date(+ym.slice(0,4), +ym.slice(4,6)-1);
-    const addM = (d,n)=> new Date(d.getFullYear(), d.getMonth()+n);
-    const start = addM(ym2Date(seq.tsArr[0].slice(0,6)),-1);
-    const months=[]; for(let d=start; months.length<26; d=addM(d,1))
-      months.push(`${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}`);
-    const mIdx={}; months.forEach((m,i)=>mIdx[m.replace('/','')]=i);
-    const daysInMonth=(y,m)=> new Date(y,m,0).getDate();
-    const X = seq.tsArr.map(ts=>{
-      const y=+ts.slice(0,4), m=+ts.slice(4,6), d=+ts.slice(6,8), hh=+ts.slice(8,10), mm=+ts.slice(10,12);
-      return mIdx[ts.slice(0,6)] + (d-1 + (hh+mm/60)/24)/daysInMonth(y,m);
-    });
-
-    const maxI = seq.tot.indexOf(Math.max(...seq.tot));
-    const minI = seq.tot.indexOf(Math.min(...seq.tot));
-
-    const label=months, mkLine=(d,col)=>({data:d,stepped:true,borderColor:col,borderWidth:2,
-      pointRadius:3,pointBackgroundColor:col,pointBorderColor:col});
-    const mkLast=(d,col)=>({data:d.map((v,i)=>i===d.length-1?v:null),showLine:false,pointRadius:6,
-      pointBackgroundColor:col,pointBorderColor:col});
-    const mkMark=(d,i,col)=>({data:d.map((v,j)=>j===i?v:null),showLine:false,pointRadius:6,
-      pointBackgroundColor:col,pointBorderColor:col});
-
-    return {label,X,maxI,minI, mkLine, mkLast, mkMark, months};
-  }
-
+  /** 繪圖（左邊不留白） */
   function drawCurve(canvas, seq){
-    if(!seq || !seq.tsArr.length) return null;
-    const {label,X,maxI,minI,mkLine,mkLast,mkMark,months} = chartDataFrom(seq);
-
-    const stripe={id:'stripe',beforeDraw(c){const{ctx,chartArea:{left,right,top,bottom}}=c,w=(right-left)/26;
-      ctx.save();months.forEach((_,i)=>{ctx.fillStyle=i%2?'rgba(0,0,0,.04)':'transparent';
-      ctx.fillRect(left+i*w,top,w,bottom-top);});ctx.restore();}};
-    const mmLabel={id:'mmLabel',afterDraw(c){const{ctx,chartArea:{left,right,bottom}}=c,w=(right-left)/26;
-      ctx.save();ctx.font='11px sans-serif';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillStyle='#555';
-      months.forEach((m,i)=>ctx.fillText(m,left+w*(i+.5),bottom+8));ctx.restore();}};
-
-    if(canvas.__ch) canvas.__ch.destroy();
-    canvas.__ch = new Chart(canvas, {
+    if (!canvas) return;
+    if (canvas.__chart) { canvas.__chart.destroy(); canvas.__chart = null; }
+    const X = seq.ts.map((_,i)=>i); // left-aligned index
+    const mk = (d,c)=>({data:d,stepped:true,borderColor:c,borderWidth:2,pointRadius:3,
+      pointBackgroundColor:c,pointBorderColor:c,fill:false});
+    const chart = new Chart(canvas, {
       type:'line',
-      data:{labels:X, datasets:[
-        mkLine(seq.tot,'#f59e0b'), mkLine(seq.lon,'#ef4444'),
-        mkLine(seq.sho,'#10b981'), mkLine(seq.sli,'#111827'),
-        mkLast(seq.tot,'#f59e0b'), mkLast(seq.lon,'#ef4444'),
-        mkLast(seq.sho,'#10b981'), mkLast(seq.sli,'#111827'),
-        mkMark(seq.tot,maxI,'#ef4444'), mkMark(seq.tot,minI,'#10b981')
-      ]},
+      data:{
+        labels:X,
+        datasets:[
+          mk(seq.T,'#111827'),
+          mk(seq.L,'#ef4444'),
+          mk(seq.S,'#16a34a'),
+          mk(seq.P,'#f59e0b'),
+        ]
+      },
       options:{
-        responsive:true, maintainAspectRatio:false,
-        layout:{padding:{bottom:40,right:40,left:0}}, // 左邊不留白
-        plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>' '+c.parsed.y.toLocaleString('zh-TW')}}},
-        scales:{x:{type:'linear',min:0,max:25.999,grid:{display:false},ticks:{display:false}},
-                y:{ticks:{callback:v=>v.toLocaleString('zh-TW')}}}
-      }, plugins:[stripe,mmLabel]
+        maintainAspectRatio:false,
+        responsive:true,
+        plugins:{legend:{display:false}, datalabels:{display:false}},
+        scales:{x:{grid:{display:false}}, y:{ticks:{callback:v=>v.toLocaleString('zh-TW')}}}
+      },
+      plugins:[ChartDataLabels]
     });
-    return canvas.__ch;
+    canvas.__chart = chart;
   }
 
-  function paramChips(params){
-    if(!params) return '';
-    return params.join('｜');
+  /** 交易表渲染 */
+  function renderTradeTable(tbody, list){
+    tbody.innerHTML = '';
+    list.forEach((t,i)=>{
+      const tr1 = document.createElement('tr');
+      tr1.innerHTML = `
+        <td rowspan="2">${i+1}</td>
+        <td>${fmtTs(t.pos.tsIn)}</td>
+        <td>${t.pos.pIn}</td>
+        <td>${t.pos.side==='L'?'新買':'新賣'}</td>
+        <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>`;
+      const tr2 = document.createElement('tr');
+      tr2.innerHTML = `
+        <td>${fmtTs(t.tsOut)}</td>
+        <td>${t.priceOut}</td>
+        <td>${t.pos.side==='L'?'平賣':'平買'}</td>
+        <td>${fmt(t.pts)}</td>
+        <td>${fmt(CONST.FEE*2)}</td>
+        <td>${fmt(Math.round(t.priceOut*CONST.MULT*CONST.TAX))}</td>
+        <td>${fmt(t.gain)}</td>
+        <td>${fmt(sumUpTo(list,i,'gain'))}</td>
+        <td>${fmt(t.gainSlip)}</td>
+        <td>${fmt(sumUpTo(list,i,'gainSlip'))}</td>`;
+      tbody.appendChild(tr1); tbody.appendChild(tr2);
+    });
   }
 
-  // 暴露
+  function sumUpTo(arr, idx, key){
+    let s=0; for(let i=0;i<=idx;i++) s+=arr[i][key]; return s;
+  }
+
   window.SHARED = {
-    readAsTextAuto, parseRaw, pairTrades, statsFrom, buildTradesTableRows,
-    drawCurve, fmt, fmtTs, paramChips
+    CONST, fmt, fmtInt, fmtTs,
+    readAsTextAuto, parseRaw, analyseTrades, buildKPI,
+    drawCurve, renderTradeTable
   };
 })();
 </script>
