@@ -4,33 +4,30 @@
   <meta charset="utf-8" />
   <title>三劍客台指期策略分析（單檔）</title>
   <link rel="stylesheet" href="style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
-  <header class="container">
+  <header>
     <h1>三劍客台指期策略分析（單檔）</h1>
-    <div style="display:flex;gap:8px">
-      <button id="btn-clip" class="btn">貼上內容</button>
-      <label class="btn secondary">選擇檔案 <input id="fileInput" type="file" accept=".txt,.TF" hidden></label>
-    </div>
-
-    <div id="paramLine"></div>
-    <div id="kpiLine" class="compact-line"></div>
+    <button id="btn-clip" class="btn primary">貼上內容</button>
+    <label class="btn primary">選擇檔案<input id="fileInput" type="file" accept=".txt,.TF" hidden /></label>
   </header>
 
-  <div class="container row">
-    <div class="card chart-wrap"><canvas id="equity"></canvas></div>
-  </div>
-
   <div class="container">
-    <h2>交易明細</h2>
-    <div class="table-scroller">
-      <table id="tbl">
+    <div class="card pad chart-wrap"><canvas id="equityChart"></canvas></div>
+
+    <div class="card pad" style="margin-top:10px">
+      <div id="param" class="param-row"></div>
+      <div id="kpi" class="summary-line" style="margin-top:6px"></div>
+    </div>
+
+    <h3 style="margin:14px 0 8px">交易明細</h3>
+    <div class="card pad table-scroll-x">
+      <table id="tbl" class="table">
         <thead>
           <tr>
-            <th>筆數</th><th>進場時間</th><th>進場價</th><th>出場時間</th><th>出場價</th>
-            <th>方向</th><th>點數</th><th>手續費</th><th>期交稅</th><th>獲利</th>
-            <th>累積獲利</th><th>滑價獲利</th><th>累積滑價獲利</th>
+            <th>筆數</th><th>時間</th><th>價格</th><th>類型</th><th>點數</th>
+            <th>手續費</th><th>期交稅</th><th>獲利</th><th>累積獲利</th>
+            <th>滑價獲利</th><th>累積滑價獲利</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -38,6 +35,66 @@
     </div>
   </div>
 
-  <script src="single.js"></script>
+  <!-- 共用 & 單檔邏輯 -->
+  <script src="shared.js"></script>
+  <script>
+  (function(){
+    const cvs = document.getElementById('equityChart');
+    const tbl = document.getElementById('tbl').querySelector('tbody');
+    const elParam = document.getElementById('param');
+    const elKpi = document.getElementById('kpi');
+
+    document.getElementById('btn-clip').onclick = async ()=>{
+      try{
+        analyse(await navigator.clipboard.readText());
+      }catch(e){ alert(e.message); }
+    };
+    document.getElementById('fileInput').onchange = async (e)=>{
+      const f=e.target.files[0]; if(!f) return;
+      const raw = await SHARED.readAsTextAuto(f);
+      analyse(raw);
+    };
+
+    function analyse(raw){
+      const {params, lines} = SHARED.parseRaw(raw||'');
+      const {tr, seq} = SHARED.pairTrades(lines);
+      if(!tr.length){ alert('沒有成功配對的交易'); return; }
+
+      // 參數簡顯示
+      elParam.innerHTML = `<span class="pill">${SHARED.paramChips(params||[])}</span>`;
+
+      // KPI 一行（全部、多單、空單）
+      const st = SHARED.statsFrom(tr, seq);
+      const line = (name, s)=> `${name}：交易數 ${s.count}｜勝率 ${(s.win/(s.count||1)*100).toFixed(1)}%｜敗率 ${(s.lose/(s.count||1)*100).toFixed(1)}%｜單日最大獲利 ${SHARED.fmt(s.dayMax)}｜單日最大虧損 ${SHARED.fmt(s.dayMin)}｜區間最大獲利 ${SHARED.fmt(s.up)}｜區間最大回撤 ${SHARED.fmt(s.dd)}｜累積獲利 ${SHARED.fmt(s.gain)}｜滑價累計獲利 ${SHARED.fmt(s.gainSlip)}`;
+      elKpi.innerHTML = `<div class="kpi-line">
+        <span class="chip">${line('全部',st.all)}</span>
+        <span class="chip">${line('多單',st.long)}</span>
+        <span class="chip">${line('空單',st.short)}</span>
+      </div>`;
+
+      // 表格
+      tbl.innerHTML='';
+      let cum=0, cumS=0;
+      tr.forEach((t,i)=>{
+        cum+=t.gain; cumS+=t.gainSlip;
+        tbl.insertAdjacentHTML('beforeend', `
+        <tr>
+          <td rowspan="2">${i+1}</td>
+          <td>${SHARED.fmtTs(t.pos.tsIn)}</td><td>${t.pos.pIn}</td><td>${t.pos.side==='L'?'新買':'新賣'}</td>
+          <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
+        </tr>
+        <tr>
+          <td>${SHARED.fmtTs(t.tsOut)}</td><td>${t.priceOut}</td><td>${t.pos.side==='L'?'平賣':'平買'}</td>
+          <td>${SHARED.fmt(t.pts)}</td><td>${SHARED.fmt(45*2)}</td><td>${SHARED.fmt(Math.round(t.priceOut*200*0.00004))}</td>
+          <td>${SHARED.fmt(t.gain)}</td><td>${SHARED.fmt(cum)}</td>
+          <td>${SHARED.fmt(t.gainSlip)}</td><td>${SHARED.fmt(cumS)}</td>
+        </tr>`);
+      });
+
+      // 圖
+      SHARED.drawCurve(cvs, seq);
+    }
+  })();
+  </script>
 </body>
 </html>
