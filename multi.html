@@ -3,81 +3,213 @@
 <head>
   <meta charset="utf-8" />
   <title>三劍客台指期策略分析（批量版）</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="style.css" />
-  <!-- Chart.js & DataLabels -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 </head>
 <body>
-  <header class="topbar">
+  <header>
     <h1>三劍客台指期策略分析（批量版）</h1>
-    <div class="btn-group">
-      <label class="btn primary">選擇多個檔案
-        <input type="file" id="files" accept=".txt,.TF" multiple hidden />
-      </label>
-      <button id="btn-clear" class="btn">清空結果</button>
+    <div class="tools">
+      <label class="btn primary">選擇多個檔案<input id="files" type="file" accept=".txt,.TF" multiple hidden /></label>
+      <button id="clear" class="btn ghost">清空結果</button>
     </div>
   </header>
 
-  <!-- 上：左圖、右參數 + KPI + 右側明細（不足可捲動） -->
-  <section id="topGrid" class="top-grid">
-    <div class="card chart-card tight">
-      <canvas id="chart"></canvas>
-    </div>
+  <div class="container">
+    <div class="grid-2">
+      <!-- 左：圖表 -->
+      <div class="box pad" style="height:520px">
+        <canvas id="chart"></canvas>
+      </div>
 
-    <div class="right-pane">
-      <div id="paramLine" class="param-line"></div>
-      <div id="kpiCompact" class="kpi-compact"></div>
-
-      <div class="right-table">
-        <div class="table-title">交易明細</div>
-        <div class="table-wrap fixed">
-          <table id="detail">
-            <thead>
-              <tr>
-                <th>筆數</th><th>進場時間</th><th>進場價</th><th>類型</th>
-                <th>出場時間</th><th>出場價</th><th>方向</th>
-                <th>點數</th><th>手續費</th><th>期交稅</th>
-                <th>獲利</th><th>累積獲利</th>
-                <th>滑價獲利</th><th>累積滑價獲利</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
+      <!-- 右：參數 + KPI + 交易 -->
+      <div class="right-col">
+        <div class="panel">
+          <h3>第一筆參數 / KPI</h3>
+          <div id="r-param" class="param-row"></div>
+          <div id="r-kpi" class="summary-line" style="margin-top:6px"></div>
+        </div>
+        <div class="panel">
+          <h3>交易明細</h3>
+          <div class="trades table-scroll-x">
+            <table class="table"><thead id="tr-h"></thead><tbody id="tr-b"></tbody></table>
+          </div>
         </div>
       </div>
     </div>
-  </section>
 
-  <!-- 下：彙總（每檔一行，橫向可捲動；可點欄位排序；點選某行會雙區域跟著更新） -->
-  <section class="card">
-    <div class="table-title">彙總結果（每行一檔，橫向可捲動）</div>
-    <div class="table-wrap xscroll">
-      <table id="summary" class="row-one">
-        <thead>
-          <tr>
-            <th data-key="t" class="sticky">檔名 / 時間</th>
-            <th data-key="param">參數</th>
-            <th data-key="n">交易數</th>
-            <th data-key="wr">勝率</th>
-            <th data-key="eq">累積獲利</th>
-            <th data-key="pf">Profit&nbsp;Factor</th>
-            <th data-key="dayMax">單日最大獲利</th>
-            <th data-key="dd">區間最大回撤</th>
-            <th data-key="longEq">多-累積獲利</th>
-            <th data-key="longWr">多-勝率</th>
-            <th data-key="shortEq">空-累積獲利</th>
-            <th data-key="shortWr">空-勝率</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+    <!-- 彙總一覽（每行一檔，橫向可捲動，可排序） -->
+    <div id="agg" class="card pad">
+      <div class="table-scroll-x">
+        <table id="agg-table" class="table">
+          <thead>
+            <tr>
+              <th>檔名 / 時間</th>
+              <th>參數</th>
+              <th class="sortable" data-key="count">交易數</th>
+              <th class="sortable" data-key="winRate">勝率</th>
+              <th class="sortable" data-key="gain">累積獲利</th>
+              <th class="sortable" data-key="pf">Profit Factor</th>
+              <th class="sortable" data-key="dayMax">單日最大獲利</th>
+              <th class="sortable" data-key="dd">區間最大回撤</th>
+              <th class="sortable" data-key="longWin">多-勝率</th>
+              <th class="sortable" data-key="longGain">多-累積獲利</th>
+              <th class="sortable" data-key="shortWin">空-勝率</th>
+              <th class="sortable" data-key="shortGain">空-累積獲利</th>
+            </tr>
+          </thead>
+          <tbody id="agg-body"></tbody>
+        </table>
+      </div>
+      <div class="help">TXT 第一行若為參數會自動辨識；點擊表頭可排序；點擊某行會同步更新上方圖表/KPI/交易明細。</div>
     </div>
-    <p class="hint">TXT 第一行若為參數會自動辨識；點擊表頭可排序；點擊某行同步更新上方圖表/參數/KPI/交易明細。</p>
-  </section>
+  </div>
 
+  <!-- 共用 & 批量邏輯 -->
   <script src="shared.js"></script>
-  <script src="multi.js"></script>
+  <script>
+  (function(){
+    const fileInput = document.getElementById('files');
+    const clearBtn  = document.getElementById('clear');
+    const cvs = document.getElementById('chart');
+
+    const R = { // 右側
+      param: document.getElementById('r-param'),
+      kpi:   document.getElementById('r-kpi'),
+      trH:   document.getElementById('tr-h'),
+      trB:   document.getElementById('tr-b')
+    };
+    const AGG = { body: document.getElementById('agg-body'), table: document.getElementById('agg-table') };
+
+    let items = []; // {name,time,params,tr,seq,stats}
+    let order = {key:'gain', asc:false};
+
+    clearBtn.onclick = ()=>{ items=[]; renderAll(); };
+
+    fileInput.onchange = async (e)=>{
+      const files = [...e.target.files];
+      if(!files.length){ alert('未選到可用檔案'); return; }
+      for(const f of files){
+        const raw = await SHARED.readAsTextAuto(f);
+        const {params, lines} = SHARED.parseRaw(raw);
+        const {tr, seq} = SHARED.pairTrades(lines);
+        if(!tr.length) continue;
+
+        const stats = SHARED.statsFrom(tr, seq);
+        const name = f.name.replace(/\.txt$|\.TF$/i,'');
+        const time = (name.match(/(\d{8}_\d{6})/)||[''])[0] || name;
+        items.push({name,time,params,tr,seq,stats});
+      }
+      if(!items.length){ alert('未讀到可用檔案'); return; }
+      renderAll();
+    };
+
+    function renderAll(){
+      // 彙總表
+      renderAgg();
+      // 若有資料，預設選第一筆
+      if(items.length) selectRow(0);
+      else {
+        R.param.textContent=''; R.kpi.textContent='';
+        R.trH.innerHTML=''; R.trB.innerHTML='';
+        if(cvs.__ch){ cvs.__ch.destroy(); cvs.__ch=null; }
+      }
+    }
+
+    function renderAgg(){
+      // 排序
+      const key = order.key, asc = order.asc ? 1 : -1;
+      const score = (it)=>{
+        const a = it.stats.all, L=it.stats.long, S=it.stats.short;
+        return {
+          count:a.count, winRate: (a.win/(a.count||1))*100, gain:a.gain, pf: (a.win/Math.max(1,a.lose)),
+          dayMax:a.dayMax, dd:a.dd, longWin:(L.win/(L.count||1))*100, longGain:L.gain, shortWin:(S.win/(S.count||1))*100, shortGain:S.gain
+        };
+      };
+      const withScore = items.map((it,i)=>({it,i,sc:score(it)}))
+        .sort((x,y)=> (x.sc[key]-y.sc[key])*asc );
+
+      AGG.body.innerHTML='';
+      withScore.forEach(({it,i})=>{
+        const p = SHARED.paramChips(it.params||[]);
+        AGG.body.insertAdjacentHTML('beforeend', `
+          <tr data-idx="${i}" style="cursor:pointer">
+            <td>${it.time}</td>
+            <td style="text-align:left">${p}</td>
+            <td>${it.stats.all.count}</td>
+            <td>${(it.stats.all.win/(it.stats.all.count||1)*100).toFixed(1)}%</td>
+            <td>${SHARED.fmt(it.stats.all.gain)}</td>
+            <td>${(it.stats.all.win/Math.max(1,it.stats.all.lose)).toFixed(2)}</td>
+            <td>${SHARED.fmt(it.stats.all.dayMax)}</td>
+            <td>${SHARED.fmt(it.stats.all.dd)}</td>
+            <td>${(it.stats.long.win/(it.stats.long.count||1)*100).toFixed(1)}%</td>
+            <td>${SHARED.fmt(it.stats.long.gain)}</td>
+            <td>${(it.stats.short.win/(it.stats.short.count||1)*100).toFixed(1)}%</td>
+            <td>${SHARED.fmt(it.stats.short.gain)}</td>
+          </tr>
+        `);
+      });
+
+      // 點擊切換
+      [...AGG.body.querySelectorAll('tr')].forEach(tr=>{
+        tr.onclick = ()=> selectRow(+tr.dataset.idx);
+      });
+
+      // 表頭排序
+      [...AGG.table.querySelectorAll('th.sortable')].forEach(th=>{
+        th.onclick = ()=>{
+          const k = th.dataset.key;
+          if(order.key===k) order.asc = !order.asc;
+          else { order.key=k; order.asc=false; }
+          renderAgg();
+        };
+      });
+    }
+
+    function selectRow(idx){
+      const it = items[idx]; if(!it) return;
+
+      // 右側參數
+      R.param.innerHTML = `<span class="pill">${SHARED.paramChips(it.params||[])}</span>`;
+
+      // KPI（簡行）
+      const s = it.stats;
+      const line = (name, a)=> `${name}：交易數 ${a.count}｜勝率 ${(a.win/(a.count||1)*100).toFixed(1)}%｜敗率 ${(a.lose/(a.count||1)*100).toFixed(1)}%｜單日最大獲利 ${SHARED.fmt(a.dayMax)}｜單日最大虧損 ${SHARED.fmt(a.dayMin)}｜區間最大獲利 ${SHARED.fmt(a.up)}｜區間最大回撤 ${SHARED.fmt(a.dd)}｜累積獲利 ${SHARED.fmt(a.gain)}｜滑價累計獲利 ${SHARED.fmt(a.gainSlip)}`;
+      R.kpi.innerHTML = `<div class="kpi-line">
+        <span class="chip">${line('全部',s.all)}</span>
+        <span class="chip">${line('多單',s.long)}</span>
+        <span class="chip">${line('空單',s.short)}</span>
+      </div>`;
+
+      // 交易表（單行延伸、可橫捲）
+      R.trH.innerHTML = `<tr>
+        <th>筆數</th><th>進場時間</th><th>進場價</th><th>類型</th>
+        <th>點數</th><th>手續費</th><th>期交稅</th><th>獲利</th><th>累積獲利</th>
+        <th>滑價獲利</th><th>累積滑價獲利</th>
+      </tr>`;
+      R.trB.innerHTML='';
+      let cum=0, cumS=0;
+      it.tr.forEach((t,i)=>{
+        cum+=t.gain; cumS+=t.gainSlip;
+        R.trB.insertAdjacentHTML('beforeend', `
+          <tr>
+            <td>${i+1}</td>
+            <td>${SHARED.fmtTs(t.pos.tsIn)}</td><td>${t.pos.pIn}</td><td>${t.pos.side==='L'?'新買':'新賣'}</td>
+            <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td>${SHARED.fmtTs(t.tsOut)}</td><td>${t.priceOut}</td><td>${t.pos.side==='L'?'平賣':'平買'}</td>
+            <td>${SHARED.fmt(t.pts)}</td><td>${SHARED.fmt(45*2)}</td><td>${SHARED.fmt(Math.round(t.priceOut*200*0.00004))}</td>
+            <td>${SHARED.fmt(t.gain)}</td><td>${SHARED.fmt(cum)}</td>
+            <td>${SHARED.fmt(t.gainSlip)}</td><td>${SHARED.fmt(cumS)}</td>
+          </tr>
+        `);
+      });
+
+      // 圖表（左側不留白）
+      SHARED.drawCurve(cvs, it.seq);
+    }
+  })();
+  </script>
 </body>
 </html>
