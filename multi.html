@@ -3,64 +3,81 @@
 <head>
   <meta charset="utf-8" />
   <title>三劍客台指期策略分析（批量版）</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="style.css" />
+  <!-- Chart.js & DataLabels -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 </head>
 <body>
-  <header class="container">
+  <header class="topbar">
     <h1>三劍客台指期策略分析（批量版）</h1>
-    <div style="display:flex;gap:8px">
-      <label class="btn">選擇多個檔案 <input id="multiInput" type="file" accept=".txt,.TF" hidden multiple></label>
-      <button id="clearBtn" class="btn secondary">清空結果</button>
+    <div class="btn-group">
+      <label class="btn primary">選擇多個檔案
+        <input type="file" id="files" accept=".txt,.TF" multiple hidden />
+      </label>
+      <button id="btn-clear" class="btn">清空結果</button>
     </div>
   </header>
 
-  <div class="container row row-2">
-    <!-- 左：圖 -->
-    <div class="card chart-wrap"><canvas id="mChart"></canvas></div>
+  <!-- 上：左圖、右參數 + KPI + 右側明細（不足可捲動） -->
+  <section id="topGrid" class="top-grid">
+    <div class="card chart-card tight">
+      <canvas id="chart"></canvas>
+    </div>
 
-    <!-- 右：參數＋KPI＋交易明細 -->
-    <div class="card" style="display:flex;flex-direction:column;gap:10px;max-height:520px;overflow:auto;">
-      <div id="mParam" class="compact-line"></div>
-      <div id="mKPI" class="compact-line"></div>
+    <div class="right-pane">
+      <div id="paramLine" class="param-line"></div>
+      <div id="kpiCompact" class="kpi-compact"></div>
 
-      <div class="table-scroller">
-        <table id="mTrades">
-          <thead><tr id="mHead"></tr></thead>
-          <tbody></tbody>
-        </table>
+      <div class="right-table">
+        <div class="table-title">交易明細</div>
+        <div class="table-wrap fixed">
+          <table id="detail">
+            <thead>
+              <tr>
+                <th>筆數</th><th>進場時間</th><th>進場價</th><th>類型</th>
+                <th>出場時間</th><th>出場價</th><th>方向</th>
+                <th>點數</th><th>手續費</th><th>期交稅</th>
+                <th>獲利</th><th>累積獲利</th>
+                <th>滑價獲利</th><th>累積滑價獲利</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <div class="container">
-    <h2>彙總結果（每行一檔，橫向可捲動）</h2>
-    <div class="summary">
-      <table id="sumTbl">
+  <!-- 下：彙總（每檔一行，橫向可捲動；可點欄位排序；點選某行會雙區域跟著更新） -->
+  <section class="card">
+    <div class="table-title">彙總結果（每行一檔，橫向可捲動）</div>
+    <div class="table-wrap xscroll">
+      <table id="summary" class="row-one">
         <thead>
           <tr>
-            <th data-k="name">時間</th>
-            <th data-k="param">參數</th>
-            <th data-k="trades">交易數</th>
-            <th data-k="win">勝率</th>
-            <th data-k="gain">累積獲利</th>
-            <th data-k="pf">Profit Factor</th>
-            <th data-k="best">單日最大獲利</th>
-            <th data-k="dd">區間最大回撤</th>
-            <th data-k="lwin">多-勝率</th>
-            <th data-k="lgain">多-累積獲利</th>
-            <th data-k="swin">空-勝率</th>
-            <th data-k="sgain">空-累積獲利</th>
+            <th data-key="t" class="sticky">檔名 / 時間</th>
+            <th data-key="param">參數</th>
+            <th data-key="n">交易數</th>
+            <th data-key="wr">勝率</th>
+            <th data-key="eq">累積獲利</th>
+            <th data-key="pf">Profit&nbsp;Factor</th>
+            <th data-key="dayMax">單日最大獲利</th>
+            <th data-key="dd">區間最大回撤</th>
+            <th data-key="longEq">多-累積獲利</th>
+            <th data-key="longWr">多-勝率</th>
+            <th data-key="shortEq">空-累積獲利</th>
+            <th data-key="shortWr">空-勝率</th>
           </tr>
         </thead>
         <tbody></tbody>
       </table>
     </div>
-    <div class="muted" style="margin-top:6px">
-      TXT 第一行若為參數會自動辨識；點擊表頭可排序；點擊某行會同步更新上方圖表/KPI/交易明細。
-    </div>
-  </div>
+    <p class="hint">TXT 第一行若為參數會自動辨識；點擊表頭可排序；點擊某行同步更新上方圖表/參數/KPI/交易明細。</p>
+  </section>
 
+  <script src="shared.js"></script>
   <script src="multi.js"></script>
 </body>
 </html>
