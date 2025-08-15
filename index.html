@@ -2,31 +2,51 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
-  <title>許夏睿、張宸、何冠緯等三劍客團隊台指期策略分析網站｜入口</title>
+  <title>三劍客台指期策略分析（單檔）</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="style.css" />
+  <!-- Chart.js & DataLabels -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 </head>
-<body class="full"> <!-- 加 full 讓此頁啟用滿版樣式 -->
-  <header>
-    <h1>許夏睿、張宸、何冠緯等三劍客團隊台指期策略分析網站</h1>
+<body>
+  <header class="topbar">
+    <h1>三劍客台指期策略分析（單檔）</h1>
+    <div class="btn-group">
+      <button id="btn-clip" class="btn primary">貼上內容</button>
+      <label class="btn primary">選擇檔案
+        <input type="file" id="fileInput" accept=".txt,.TF" hidden />
+      </label>
+    </div>
   </header>
 
-  <!-- 滿版自適應卡片區 -->
-  <div class="cards-grid">
-    <section class="card hero">
-      <div class="hero-body">
-        <h2>單檔分析</h2>
-        <p>貼上或選一個 TXT，即時顯示損益曲線、交易表與 KPI。</p>
-        <a class="btn primary" href="single.html">進入單檔版</a>
-      </div>
-    </section>
+  <!-- 參數（第一排） -->
+  <div id="paramLine" class="param-line"></div>
 
-    <section class="card hero">
-      <div class="hero-body">
-        <h2>批量分析</h2>
-        <p>一次匯入多個 TXT；支援排序、彙總 KPI 與第一列收益曲線。</p>
-        <a class="btn primary" href="multi.html">進入批量版</a>
-      </div>
-    </section>
+  <div class="card chart-card">
+    <canvas id="equityChart"></canvas>
   </div>
+
+  <!-- KPI（三組：全部/多單/空單，精簡一行） -->
+  <div id="kpiCompact" class="kpi-compact"></div>
+
+  <h2 class="sub">交易明細</h2>
+  <div class="table-wrap">
+    <table id="tbl">
+      <thead>
+        <tr>
+          <th>筆數</th><th>進場時間</th><th>進場價</th><th>類型</th>
+          <th>出場時間</th><th>出場價</th><th>方向</th>
+          <th>點數</th><th>手續費</th><th>期交稅</th>
+          <th>獲利</th><th>累積獲利</th>
+          <th>滑價獲利</th><th>累積滑價獲利</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script src="shared.js"></script>
+  <script src="single.js"></script>
 </body>
 </html>
