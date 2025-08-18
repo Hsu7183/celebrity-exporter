@@ -2,51 +2,24 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
-  <title>三劍客台指期策略分析（單檔）</title>
+  <title>三劍客台指期策略分析｜首頁</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="style.css" />
-  <!-- Chart.js & DataLabels -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+  <link rel="stylesheet" href="./style.css?v=20250815" />
 </head>
-<body>
-  <header class="topbar">
-    <h1>三劍客台指期策略分析（單檔）</h1>
-    <div class="btn-group">
-      <button id="btn-clip" class="btn primary">貼上內容</button>
-      <label class="btn primary">選擇檔案
-        <input type="file" id="fileInput" accept=".txt,.TF" hidden />
-      </label>
+<body class="home">
+  <div class="home-wrap">
+    <h1>三劍客台指期策略分析</h1>
+    <p class="sub">請選擇模式</p>
+    <div class="home-cards">
+      <a class="card" href="./single.html">
+        <div class="card-title">單檔分析</div>
+        <div class="card-desc">貼上或載入 1 份 TXT，查看收益曲線、KPI 與交易明細</div>
+      </a>
+      <a class="card" href="./multi.html">
+        <div class="card-title">批量分析</div>
+        <div class="card-desc">一次載入多份 TXT，彙總成表，點選任一列看圖與明細</div>
+      </a>
     </div>
-  </header>
-
-  <!-- 參數（第一排） -->
-  <div id="paramLine" class="param-line"></div>
-
-  <div class="card chart-card">
-    <canvas id="equityChart"></canvas>
   </div>
-
-  <!-- KPI（三組：全部/多單/空單，精簡一行） -->
-  <div id="kpiCompact" class="kpi-compact"></div>
-
-  <h2 class="sub">交易明細</h2>
-  <div class="table-wrap">
-    <table id="tbl">
-      <thead>
-        <tr>
-          <th>筆數</th><th>進場時間</th><th>進場價</th><th>類型</th>
-          <th>出場時間</th><th>出場價</th><th>方向</th>
-          <th>點數</th><th>手續費</th><th>期交稅</th>
-          <th>獲利</th><th>累積獲利</th>
-          <th>滑價獲利</th><th>累積滑價獲利</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
-
-  <script src="shared.js"></script>
-  <script src="single.js"></script>
 </body>
 </html>
