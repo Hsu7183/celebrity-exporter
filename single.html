@@ -1,92 +1,49 @@
 <!doctype html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8"/>
+  <meta charset="utf-8" />
   <title>三劍客台指期策略分析（單檔）</title>
-  <link rel="stylesheet" href="style.css"/>
-  <!-- 共用工具（含 Chart.js）-->
-  <script src="shared.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="./style.css?v=20250815" />
+  <!-- Chart.js + datalabels -->
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+  <!-- 共用工具（一定要先載入） -->
+  <script defer src="./shared.js?v=20250815"></script>
+  <!-- 本頁腳本 -->
+  <script defer src="./single.js?v=20250815"></script>
 </head>
 <body>
-  <div class="container">
-    <h1>三劍客台指期策略分析（單檔）</h1>
-
-    <div class="tools">
-      <button id="btnPaste" class="btn primary">貼上內容</button>
-      <label class="btn ghost">選擇檔案
-        <input id="file" type="file" accept=".txt,.TF" hidden>
-      </label>
+  <div class="page">
+    <h1 class="page-title">三劍客台指期策略分析（單檔）</h1>
+    <div class="toolbar">
+      <button id="btn-clip" class="btn">貼上內容</button>
+      <label class="btn"><input id="file" type="file" accept=".txt,.TF" hidden>選擇檔案</label>
     </div>
 
-    <div class="card section">
-      <h2>第一筆收益曲線</h2>
-      <div class="canvas-wrap"><canvas id="cv" class="canvas"></canvas></div>
+    <div class="card-panel">
+      <div class="chart-wrap">
+        <div class="kpi-line"><span class="tag" id="paramChip">參數</span><span id="kpiBrief">尚未載入</span></div>
+        <canvas id="chart"></canvas>
+      </div>
     </div>
 
-    <div id="paramBar" class="card chips" style="margin-top:12px;display:none"></div>
-    <div id="kpiBox" class="card kpi" style="display:none"></div>
-
-    <div class="card section" style="margin-top:12px">
-      <h2>交易明細</h2>
-      <div class="scroll-x">
-        <table class="tbl">
-          <thead>
+    <h3>交易明細</h3>
+    <div class="table">
+      <table id="tradeTable">
+        <thead>
           <tr>
-            <th>筆數</th><th>時間</th><th>價格</th><th>類型</th>
+            <th>筆數</th><th>進場時間</th><th>進場價</th><th>類型</th>
             <th>點數</th><th>手續費</th><th>期交稅</th>
             <th>獲利</th><th>累積獲利</th>
             <th>滑價獲利</th><th>累積滑價獲利</th>
           </tr>
-          </thead>
-          <tbody id="tb"></tbody>
-        </table>
-      </div>
+        </thead>
+        <tbody></tbody>
+      </table>
     </div>
 
+    <p class="note">提示：第一行若為參數會自動辨識；顯示參數僅取整數。</p>
   </div>
-
-  <script>
-  (function(){
-    const {readAsTextAuto, parseRaw, analyseTrades, buildKPI, drawCurve, fmtInt, renderTradeTable} = window.SHARED;
-    const elCv = document.getElementById('cv');
-    const elParam = document.getElementById('paramBar');
-    const elKPI = document.getElementById('kpiBox');
-    const elTb = document.getElementById('tb');
-
-    function show(paramsLine, trades){
-      const {list, seq} = analyseTrades(trades);
-      if (!list.length) { alert('沒有成功配對的交易'); return; }
-      // 參數列
-      elParam.style.display='block';
-      elParam.innerHTML = `<span class="chip">${paramsLine||'（無參數）'}</span>`;
-      // KPI（簡短版）
-      const k = buildKPI(list, seq);
-      elKPI.style.display='block';
-      elKPI.innerHTML =
-        `<div class="grp"><b>全部：</b>${k.all.txt}</div>
-         <div class="grp"><b>多單：</b>${k.long.txt}</div>
-         <div class="grp"><b>空單：</b>${k.shrt.txt}</div>`;
-      // 圖
-      drawCurve(elCv, seq);
-      // 表
-      renderTradeTable(elTb, list);
-    }
-
-    // 貼上
-    document.getElementById('btnPaste').onclick = async ()=>{
-      const txt = await navigator.clipboard.readText();
-      const {paramsLine, trades} = parseRaw(txt);
-      show(paramsLine, trades);
-    };
-
-    // 檔案
-    document.getElementById('file').onchange = async (e)=>{
-      const f = e.target.files[0]; if(!f) return;
-      const raw = await readAsTextAuto(f);
-      const {paramsLine, trades} = parseRaw(raw);
-      show(paramsLine, trades);
-    };
-  })();
-  </script>
 </body>
 </html>
