@@ -1,186 +1,135 @@
-<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
-<script>
-/* global Chart, ChartDataLabels */
-(function () {
-  const CONST = { MULT:200, FEE:45, TAX:0.00004, SLIP:1.5 };
-  const ENTRY = ['新買','新賣'];
-  const EXITL = ['平賣','強制平倉'];
-  const EXITS = ['平買','強制平倉'];
+/* shared.js - 共用工具（非 module） */
+(function(){
+  if (window.SHARED) { return; } // 防重複載入
 
-  const fmtInt = n => Number(n).toLocaleString('zh-TW', {maximumFractionDigits:0});
-  const fmt = n => typeof n === 'number'
-      ? n.toLocaleString('zh-TW', {maximumFractionDigits:2}) : n;
-  const fmtTs = s => `${s.slice(0,4)}/${s.slice(4,6)}/${s.slice(6,8)} ${s.slice(8,10)}:${s.slice(10,12)}`;
+  const MULT = 200, FEE = 45, TAX = 0.00004, SLIP = 1.5;
+  const ENTRY = ['新買','新賣'], EXIT_L=['平賣','強制平倉'], EXIT_S=['平買','強制平倉'];
 
-  /** 讀檔：big5 失敗時改 utf-8 */
+  /** 嘗試 Big5 -> UTF-8 讀檔 */
   function readAsTextAuto(file){
     return new Promise((resolve,reject)=>{
-      const r1 = new FileReader();
-      r1.onload = () => resolve(r1.result);
-      r1.onerror = () => {
-        const r2 = new FileReader();
-        r2.onload = () => resolve(r2.result);
-        r2.onerror = reject;
-        r2.readAsText(file);
-      };
-      // 先試 big5
-      try{ r1.readAsText(file, 'big5'); }catch{ r1.readAsText(file); }
+      const r1=new FileReader();
+      r1.onerror=()=>resolve(null);
+      r1.onload = ()=> resolve(r1.result);
+      try{ r1.readAsText(file,'big5'); }catch{ resolve(null); }
+    }).then(txt=>{
+      if (txt && /[\u4E00-\u9FFF]/.test(txt)) return txt;
+      return new Promise((ok,no)=>{
+        const r2=new FileReader();
+        r2.onerror=()=>no(r2.error);
+        r2.onload = ()=> ok(r2.result);
+        r2.readAsText(file); // utf-8
+      });
     });
   }
 
-  /** 解析 TXT：回 {params, paramsLine, trades[]} */
-  function parseRaw(raw){
-    const rows = raw.trim().split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-    let params = [];
-    // 第一行若是純數字組成視為參數列
-    const firstNums = rows[0].split(/\s+/).every(x => !isNaN(Number(x)));
-    if (firstNums) {
-      params = rows[0].split(/\s+/).map(Number);
-      rows.shift();
+  /** 只在顯示參數時把小數拿掉（整數字串） */
+  function i(n){ return String(Math.trunc(Number(n||0))); }
+
+  /** 解析原始 TXT 為 { params, trades } */
+  function parseTXT(raw){
+    const lines = raw.replace(/\r/g,'').trim().split('\n').map(s=>s.trim()).filter(Boolean);
+    let params = null;
+    // 第一行若是 10 個以上數字，就當參數
+    const firstNums = (lines[0]||'').match(/-?\d+(\.\d+)?/g);
+    if (firstNums && firstNums.length>=10){
+      params = firstNums.map(Number);
+      lines.shift();
     }
-    const trades = rows.map(l=>{
-      const [ts, price, act] = l.split(/\s+/);
-      return {ts, price:+price, act};
-    });
-    const paramsLine = params.length
-      ? params.map(v => fmtInt(v)).join('｜')
-      : '';
-    return { params, paramsLine, trades };
+    const rows = [];
+    for (const s of lines){
+      const m = s.match(/^(\d{14})\.?\d*\s+(\d+(?:\.\d+)?)\s+(\S+)/);
+      if(!m) continue;
+      const [_, ts, p, act] = m;
+      if(!['新買','新賣','平買','平賣','強制平倉'].includes(act)) continue;
+      rows.push({ts, price:+p, act});
+    }
+    return { params, rows };
   }
 
-  /** 配對/績效 */
-  function analyseTrades(trades){
-    const q = [];
-    const rs = [];
-    const Xts=[], tot=[], lon=[], sho=[], slip=[];
+  /** 由 rows 配對計算績效與累積序列 */
+  function buildReport(rows){
+    const q=[], trades=[], tsArr=[], total=[], longCum=[], shortCum=[], slipCum=[];
     let cum=0, cumL=0, cumS=0, cumSlip=0;
 
-    for(const t of trades){
-      if(ENTRY.includes(t.act)){
-        q.push({ side: t.act==='新買'?'L':'S', pIn:t.price, tsIn:t.ts });
+    for (const r of rows){
+      const {ts,price,act} = r;
+      if (ENTRY.includes(act)){
+        q.push({ side: act==='新買'?'L':'S', pIn: price, tsIn: ts });
         continue;
       }
-      const qi = q.findIndex(o => (o.side==='L' && EXITL.includes(t.act)) || (o.side==='S' && EXITS.includes(t.act)));
-      if (qi === -1) continue;
+      // 找到可平倉倉位
+      const qi = q.findIndex(o => (o.side==='L' && EXIT_L.includes(act)) || (o.side==='S' && EXIT_S.includes(act)));
+      if (qi===-1) continue;
       const pos = q.splice(qi,1)[0];
-
-      const pts = pos.side==='L' ? (t.price - pos.pIn) : (pos.pIn - t.price);
-      const fee = CONST.FEE * 2;
-      const tax = Math.round(t.price * CONST.MULT * CONST.TAX);
-      const gain = pts * CONST.MULT - fee - tax;
-      const gainSlip = gain - CONST.SLIP * CONST.MULT;
+      const pts = pos.side==='L' ? price - pos.pIn : pos.pIn - price;
+      const fee = FEE*2, tax = Math.round(price*MULT*TAX);
+      const gain = pts*MULT - fee - tax;
+      const gainSlip = gain - SLIP*MULT;
 
       cum += gain; cumSlip += gainSlip;
-      pos.side==='L' ? (cumL += gain) : (cumS += gain);
+      if (pos.side==='L') cumL += gain; else cumS += gain;
 
-      rs.push({pos, tsOut:t.ts, priceOut:t.price, pts, gain, gainSlip});
-
-      Xts.push(t.ts); tot.push(cum); lon.push(cumL); sho.push(cumS); slip.push(cumSlip);
+      trades.push({pos, tsOut: ts, priceOut: price, pts, gain, gainSlip});
+      tsArr.push(ts); total.push(cum); longCum.push(cumL); shortCum.push(cumS); slipCum.push(cumSlip);
     }
-    return { list:rs, seq:{ts:Xts, T:tot, L:lon, S:sho, P:slip} };
-  }
 
-  /** KPI（回文字 + 給表格的物件） */
-  function buildKPI(list, seq){
-    const sum = a => a.reduce((x,y)=>x+y,0);
-    const byDay = a=>{
-      const m={};
-      a.forEach(t=>{ const d=t.tsOut.slice(0,8); m[d]=(m[d]||0)+t.gain; });
+    // KPI
+    const sum = a=>a.reduce((x,y)=>x+y,0);
+    const byDay = list => {
+      const m={}; list.forEach(t=>{const d=t.tsOut.slice(0,8); m[d]=(m[d]||0)+t.gain;});
       return Object.values(m);
     };
-    const rise = s=>{ let m=s[0],u=0; s.forEach(v=>{m=Math.min(m,v); u=Math.max(u,v-m);}); return u; };
-    const fall = s=>{ let p=s[0],d=0; s.forEach(v=>{p=Math.max(p,v); d=Math.min(d,v-p);}); return d; };
+    const drawUp = s => { let mn=s[0]||0, up=0; s.forEach(v=>{ mn=Math.min(mn,v); up=Math.max(up,v-mn);}); return up; };
+    const drawDn = s => { let pk=s[0]||0, dn=0; s.forEach(v=>{ pk=Math.max(pk,v); dn=Math.min(dn,v-pk);}); return dn; };
 
-    const mk = (filter, seqArr)=>{
-      const li = list.filter(filter);
-      const win = li.filter(t=>t.gain>0);
-      const loss= li.filter(t=>t.gain<0);
-      const pf = (sum(win.map(t=>t.gain)) / Math.abs(sum(loss.map(t=>t.gain||0)))) || 0;
-
-      const txt = `交易數 ${li.length}｜勝率 ${(win.length/(li.length||1)*100).toFixed(1)}%｜敗率 ${(loss.length/(li.length||1)*100).toFixed(1)}%｜單日最大獲利 ${fmtInt(Math.max(...byDay(li),0))}｜單日最大虧損 ${fmtInt(Math.min(...byDay(li),0))}｜區間最大獲利 ${fmtInt(rise(seqArr))}｜區間最大回撤 ${fmtInt(fall(seqArr))}｜累積獲利 ${fmtInt(sum(li.map(t=>t.gain)))}｜滑價累計獲利 ${fmtInt(sum(li.map(t=>t.gainSlip)))}｜ProfitFactor：${pf.toFixed(2)}`;
-      const row = {
-        trades: li.length,
-        winRate: +(win.length/(li.length||1)*100).toFixed(1),
-        profit: sum(li.map(t=>t.gain)),
-        pf:+pf.toFixed(2),
-        dayMax: Math.max(...byDay(li),0),
-        dd: fall(seqArr),
+    const longs= trades.filter(t=>t.pos.side==='L');
+    const shorts= trades.filter(t=>t.pos.side==='S');
+    const mk = (list, seq) => {
+      const win=list.filter(t=>t.gain>0), loss=list.filter(t=>t.gain<0);
+      return {
+        count:list.length,
+        winRate: list.length ? (win.length/list.length) : 0,
+        loseRate: list.length ? (loss.length/list.length) : 0,
+        posPts: sum(win.map(t=>t.pts)),
+        negPts: sum(loss.map(t=>t.pts)),
+        pts: sum(list.map(t=>t.pts)),
+        gain: sum(list.map(t=>t.gain)),
+        gainSlip: sum(list.map(t=>t.gainSlip)),
+        dayMax: Math.max(0,...byDay(list)),
+        dayMin: Math.min(0,...byDay(list)),
+        up: drawUp(seq),
+        dd: drawDn(seq),
       };
-      return { txt, row };
     };
+    const statAll = mk(trades, total);
+    const statL   = mk(longs,  longCum);
+    const statS   = mk(shorts, shortCum);
 
-    const all  = mk(()=>true, seq.T);
-    const long = mk(t=>t.pos.side==='L', seq.L);
-    const shrt = mk(t=>t.pos.side==='S', seq.S);
-
-    return { all, long, shrt };
+    return {
+      trades, tsArr, total, longCum, shortCum, slipCum,
+      statAll, statL, statS
+    };
   }
 
-  /** 繪圖（左邊不留白） */
-  function drawCurve(canvas, seq){
-    if (!canvas) return;
-    if (canvas.__chart) { canvas.__chart.destroy(); canvas.__chart = null; }
-    const X = seq.ts.map((_,i)=>i); // left-aligned index
-    const mk = (d,c)=>({data:d,stepped:true,borderColor:c,borderWidth:2,pointRadius:3,
-      pointBackgroundColor:c,pointBorderColor:c,fill:false});
-    const chart = new Chart(canvas, {
-      type:'line',
-      data:{
-        labels:X,
-        datasets:[
-          mk(seq.T,'#111827'),
-          mk(seq.L,'#ef4444'),
-          mk(seq.S,'#16a34a'),
-          mk(seq.P,'#f59e0b'),
-        ]
-      },
-      options:{
-        maintainAspectRatio:false,
-        responsive:true,
-        plugins:{legend:{display:false}, datalabels:{display:false}},
-        scales:{x:{grid:{display:false}}, y:{ticks:{callback:v=>v.toLocaleString('zh-TW')}}}
-      },
-      plugins:[ChartDataLabels]
-    });
-    canvas.__chart = chart;
-  }
+  /** 小工具 */
+  const fmtMoney = n => (Number(n)||0).toLocaleString('zh-TW');
+  const pct = x => (x*100).toFixed(1)+'%';
+  const fmtTs = s => `${s.slice(0,4)}/${s.slice(4,6)}/${s.slice(6,8)} ${s.slice(8,10)}:${s.slice(10,12)}`;
 
-  /** 交易表渲染 */
-  function renderTradeTable(tbody, list){
-    tbody.innerHTML = '';
-    list.forEach((t,i)=>{
-      const tr1 = document.createElement('tr');
-      tr1.innerHTML = `
-        <td rowspan="2">${i+1}</td>
-        <td>${fmtTs(t.pos.tsIn)}</td>
-        <td>${t.pos.pIn}</td>
-        <td>${t.pos.side==='L'?'新買':'新賣'}</td>
-        <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>`;
-      const tr2 = document.createElement('tr');
-      tr2.innerHTML = `
-        <td>${fmtTs(t.tsOut)}</td>
-        <td>${t.priceOut}</td>
-        <td>${t.pos.side==='L'?'平賣':'平買'}</td>
-        <td>${fmt(t.pts)}</td>
-        <td>${fmt(CONST.FEE*2)}</td>
-        <td>${fmt(Math.round(t.priceOut*CONST.MULT*CONST.TAX))}</td>
-        <td>${fmt(t.gain)}</td>
-        <td>${fmt(sumUpTo(list,i,'gain'))}</td>
-        <td>${fmt(t.gainSlip)}</td>
-        <td>${fmt(sumUpTo(list,i,'gainSlip'))}</td>`;
-      tbody.appendChild(tr1); tbody.appendChild(tr2);
-    });
-  }
-
-  function sumUpTo(arr, idx, key){
-    let s=0; for(let i=0;i<=idx;i++) s+=arr[i][key]; return s;
+  /** 產生「參數簡約字串」 */
+  function paramsLabel(params){
+    if(!params) return '（無參數）';
+    // 使用整數，並以「｜」相連
+    return params.map(i).join('｜');
   }
 
   window.SHARED = {
-    CONST, fmt, fmtInt, fmtTs,
-    readAsTextAuto, parseRaw, analyseTrades, buildKPI,
-    drawCurve, renderTradeTable
+    // const
+    MULT, FEE, TAX, SLIP, ENTRY, EXIT_L, EXIT_S,
+    // io
+    readAsTextAuto, parseTXT, buildReport,
+    // fmt
+    fmtMoney, pct, fmtTs, paramsLabel
   };
 })();
-</script>
