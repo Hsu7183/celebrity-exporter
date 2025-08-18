@@ -1,186 +1,82 @@
 <!doctype html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8"/>
+  <meta charset="utf-8" />
   <title>三劍客台指期策略分析（批量版）</title>
-  <link rel="stylesheet" href="style.css"/>
-  <script src="shared.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="./style.css?v=20250815" />
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+  <script defer src="./shared.js?v=20250815"></script>
+  <script defer src="./multi.js?v=20250815"></script>
 </head>
 <body>
-  <div class="container">
-    <h1>三劍客台指期策略分析（批量版）</h1>
-
-    <div class="tools">
-      <label class="btn primary">選擇多個檔案
-        <input id="files" type="file" multiple accept=".txt,.TF" hidden>
-      </label>
-      <button id="btnClear" class="btn ghost">清空結果</button>
+  <div class="page">
+    <h1 class="page-title">三劍客台指期策略分析（批量版）</h1>
+    <div class="toolbar">
+      <label class="btn primary"><input id="files" type="file" accept=".txt,.TF" hidden multiple>選擇多個檔案</label>
+      <button id="clear" class="btn">清空結果</button>
     </div>
 
-    <div class="grid grid-2">
-      <!-- 左：圖 -->
-      <div class="card section">
-        <h2>第一筆收益曲線</h2>
-        <div class="canvas-wrap"><canvas id="cv" class="canvas"></canvas></div>
+    <div class="top-grid">
+      <div class="card-panel">
+        <div class="chart-wrap">
+          <canvas id="mChart"></canvas>
+        </div>
       </div>
 
-      <!-- 右：參數 / KPI / 交易 -->
-      <div class="card">
-        <div id="chips" class="chips"></div>
-        <div id="kpi" class="kpi small"></div>
-        <div class="section">
-          <h2>交易明細</h2>
-          <div id="tradeBox" class="scroll-x" style="max-height:260px;overflow:auto">
-            <table class="tbl">
+      <div class="right-box">
+        <div class="right-card">
+          <div class="params-line"><b>參數</b>：<span id="mParams">—</span></div>
+          <div class="kpi-line" id="mKpi">尚未載入</div>
+        </div>
+        <div class="right-card">
+          <div style="font-weight:700;margin-bottom:6px">交易明細</div>
+          <div class="scroll">
+            <table id="mTrades">
               <thead>
                 <tr>
                   <th>筆數</th><th>進場時間</th><th>進場價</th><th>類型</th>
-                  <th>出場時間</th><th>出場價</th><th>方向</th><th>點數</th>
-                  <th>手續費</th><th>期交稅</th><th>獲利</th><th>累積獲利</th>
+                  <th>點數</th><th>手續費</th><th>期交稅</th>
+                  <th>獲利</th><th>累積獲利</th>
                   <th>滑價獲利</th><th>累積滑價獲利</th>
                 </tr>
               </thead>
-              <tbody id="tb"></tbody>
+              <tbody></tbody>
             </table>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 下：彙總 -->
-    <div class="card section" style="margin-top:12px">
-      <h2>彙總結果（每行一檔，橫向可捲動）</h2>
-      <div class="scroll-x">
-        <table class="tbl" id="sumTbl">
+    <div class="sum-wrap">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <div style="font-weight:700">彙總結果（每行一檔，橫向可捲動）</div>
+        <div class="note">點選任一列 → 上方圖表/參數/KPI/交易明細會切換</div>
+      </div>
+      <div class="sum-table">
+        <table id="sumTable">
           <thead>
-          <tr>
-            <th data-k="time">檔名 / 時間</th>
-            <th data-k="params">參數</th>
-            <th data-k="trades">交易數</th>
-            <th data-k="winRate">勝率%</th>
-            <th data-k="profit">累積獲利</th>
-            <th data-k="pf">Profit Factor</th>
-            <th data-k="dayMax">單日最大獲利</th>
-            <th data-k="dd">區間最大回撤</th>
-            <th data-k="longW">多-勝率</th>
-            <th data-k="longP">多-累積獲利</th>
-            <th data-k="shortW">空-勝率</th>
-            <th data-k="shortP">空-累積獲利</th>
-          </tr>
+            <tr>
+              <th data-key="name">檔名 / 時間</th>
+              <th data-key="params">參數</th>
+              <th data-key="count">交易數</th>
+              <th data-key="winRate">勝率</th>
+              <th data-key="gain">累積獲利</th>
+              <th data-key="pf">Profit Factor</th>
+              <th data-key="dayMax">單日最大獲利</th>
+              <th data-key="dd">區間最大回撤</th>
+              <th data-key="gainL">多-累積獲利</th>
+              <th data-key="winL">多-勝率</th>
+              <th data-key="gainS">空-累積獲利</th>
+              <th data-key="winS">空-勝率</th>
+            </tr>
           </thead>
-          <tbody id="sumBody"></tbody>
+          <tbody></tbody>
         </table>
       </div>
-      <div class="small" style="margin-top:6px">TXT 第一行若為參數會自動辨識；點彙總行可同步更新上方圖表 / 參數 / KPI / 交易明細。</div>
     </div>
 
   </div>
-
-  <script>
-  (function(){
-    const S = window.SHARED;
-    const cv = document.getElementById('cv');
-    const chips = document.getElementById('chips');
-    const kpiBox = document.getElementById('kpi');
-    const tb = document.getElementById('tb');
-    const sumBody = document.getElementById('sumBody');
-    const sumTbl = document.getElementById('sumTbl');
-
-    /** state */
-    const DATA = []; // {name,time, paramsLine, list, seq, k}
-    let current = 0;
-
-    function renderTop(idx){
-      const d = DATA[idx]; if(!d) return;
-      // 參數
-      chips.innerHTML = `<span class="chip">${d.paramsLine||'（無參數）'}</span>`;
-      // KPI 精簡
-      kpiBox.innerHTML =
-        `<div class="grp"><b>全部：</b>${d.k.all.txt}</div>
-         <div class="grp"><b>多單：</b>${d.k.long.txt}</div>
-         <div class="grp"><b>空單：</b>${d.k.shrt.txt}</div>`;
-      // 圖
-      S.drawCurve(cv, d.seq);
-      // 明細
-      S.renderTradeTable(tb, d.list);
-    }
-
-    function pushRow(d, idx){
-      const tr = document.createElement('tr');
-      tr.style.cursor='pointer';
-      tr.onclick=()=>{ current = idx; renderTop(idx); };
-      tr.innerHTML = `
-        <td>${d.time}</td>
-        <td style="text-align:left">${d.paramsLine||'—'}</td>
-        <td>${d.k.all.row.trades}</td>
-        <td>${d.k.all.row.winRate}</td>
-        <td>${S.fmt(d.k.all.row.profit)}</td>
-        <td>${d.k.all.row.pf.toFixed(2)}</td>
-        <td>${S.fmt(d.k.all.row.dayMax)}</td>
-        <td>${S.fmt(d.k.all.row.dd)}</td>
-        <td>${d.k.long.row.winRate}</td>
-        <td>${S.fmt(d.k.long.row.profit)}</td>
-        <td>${d.k.shrt.row.winRate}</td>
-        <td>${S.fmt(d.k.shrt.row.profit)}</td>`;
-      sumBody.appendChild(tr);
-    }
-
-    // 排序
-    sumTbl.querySelectorAll('th[data-k]').forEach(th=>{
-      th.style.cursor='pointer';
-      th.onclick = ()=>{
-        const key = th.getAttribute('data-k');
-        DATA.sort((a,b)=>{
-          const A = getKey(a,key), B=getKey(b,key);
-          if (typeof A==='number' && typeof B==='number') return B-A;
-          return String(B).localeCompare(String(A));
-        });
-        sumBody.innerHTML=''; DATA.forEach((d,i)=>pushRow(d,i));
-        renderTop(0);
-      };
-    });
-    function getKey(d,k){
-      if(k==='time') return d.time;
-      if(k==='params') return d.paramsLine;
-      if(k==='trades') return d.k.all.row.trades;
-      if(k==='winRate') return d.k.all.row.winRate;
-      if(k==='profit') return d.k.all.row.profit;
-      if(k==='pf') return d.k.all.row.pf;
-      if(k==='dayMax') return d.k.all.row.dayMax;
-      if(k==='dd') return d.k.all.row.dd;
-      if(k==='longW') return d.k.long.row.winRate;
-      if(k==='longP') return d.k.long.row.profit;
-      if(k==='shortW') return d.k.shrt.row.winRate;
-      if(k==='shortP') return d.k.shrt.row.profit;
-      return '';
-    }
-
-    // 讀多檔
-    document.getElementById('files').onchange = async (e)=>{
-      const files = Array.from(e.target.files||[]);
-      if (!files.length) { alert('未讀到可用檔案'); return; }
-      DATA.length=0; sumBody.innerHTML=''; tb.innerHTML=''; chips.innerHTML=''; kpiBox.innerHTML='';
-      for (const f of files){
-        const raw = await S.readAsTextAuto(f);
-        const metaName = f.name.replace(/\.[^.]+$/,'');
-        const timeOnly = (metaName.match(/(\d{8}[_-]?\d{6})/)||[])[1] || metaName;
-        const {paramsLine, trades} = S.parseRaw(raw);
-        const {list, seq} = S.analyseTrades(trades);
-        if (!list.length) continue;
-        const k = S.buildKPI(list, seq);
-        const d = { name:metaName, time:timeOnly, paramsLine, list, seq, k };
-        DATA.push(d);
-      }
-      if (!DATA.length){ alert('未讀到可用檔案'); return; }
-      DATA.forEach((d,i)=>pushRow(d,i));
-      renderTop(0);
-    };
-
-    document.getElementById('btnClear').onclick=()=>{
-      DATA.length=0; sumBody.innerHTML=''; tb.innerHTML=''; chips.innerHTML=''; kpiBox.innerHTML='';
-      if (cv.__chart){ cv.__chart.destroy(); cv.__chart=null; }
-    };
-  })();
-  </script>
 </body>
 </html>
